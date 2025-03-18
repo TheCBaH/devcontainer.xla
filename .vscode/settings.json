@@ -1,0 +1,29 @@
+{
+    "IDX.aI.enableInlineCompletion": true,
+    "IDX.aI.enableCodebaseIndexing": true,
+    "cSpell.words": [
+        "autoremove",
+        "autotune",
+        "autotuning",
+        "axpy",
+        "bazel",
+        "bazelrc",
+        "cuda",
+        "devcontainers",
+        "fastbuild",
+        "googlecloudtools",
+        "mlir",
+        "noninteractive",
+        "pjrt",
+        "protoc",
+        "rooveterinaryinc",
+        "runfiles",
+        "softprops",
+        "stablehlo",
+        "userdel",
+        "valgrind"
+    ],
+    "files.exclude": {
+        ".cache": true
+    }
+}

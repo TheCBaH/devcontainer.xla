@@ -1,0 +1,44 @@
+diff --git a/xla/pjrt/cpu/cpu_client_test.cc b/xla/pjrt/cpu/cpu_client_test.cc
+index a625f2f..337c50f 100644
+--- a/xla/pjrt/cpu/cpu_client_test.cc
++++ b/xla/pjrt/cpu/cpu_client_test.cc
+@@ -64,6 +64,23 @@ limitations under the License.
+ namespace xla {
+ namespace {
+ 
++static void write_xla(const std::unique_ptr<HloModule>& hlo_module, const char* extra)
++{
++  const std::string file_name = hlo_module->name() + '.' + extra + ".xla.pb";
++  FILE* file = fopen(file_name.c_str(), "wb");
++  if (file == nullptr) {
++    LOG(ERROR) << "Failed to open file for writing: " << file_name;
++    return;
++  }
++  std::string proto_data = hlo_module->ToProto().SerializeAsString();
++  if (fwrite(proto_data.data(), 1, proto_data.size(), file) != proto_data.size()) {
++    LOG(ERROR) << "Failed to write full proto to file: " << file_name;
++  }
++  fprintf(stderr, "Written %s to file %s\n", hlo_module->name().c_str(), file_name.c_str());
++  fclose(file);
++  return;
++}
++
+ using ::testing::Each;
+ using ::testing::ElementsAre;
+ using ::testing::ElementsAreArray;
+@@ -173,6 +190,7 @@ TEST(TfrtCpuClientTest, HloSnapshot) {
+   debug_opts->set_xla_dump_to(dir);
+   debug_opts->set_xla_dump_hlo_snapshots(true);
+   XlaComputation xla_computation(hlo_module->ToProto());
++  write_xla(hlo_module, "3x2");
+   TF_ASSERT_OK_AND_ASSIGN(auto pjrt_executable,
+                           client->CompileAndLoad(xla_computation, options));
+ 
+@@ -444,6 +462,7 @@ ENTRY Identity() -> f32[2, 2] {
+ 
+   TF_ASSERT_OK_AND_ASSIGN(auto hlo_module,
+                           ParseAndReturnUnverifiedModule(kProgram, {}));
++  write_xla(hlo_module, "2x2");
+   XlaComputation xla_computation(hlo_module->ToProto());
+   TF_ASSERT_OK_AND_ASSIGN(auto pjrt_executable,
+                           client->CompileAndLoad(xla_computation, {}));

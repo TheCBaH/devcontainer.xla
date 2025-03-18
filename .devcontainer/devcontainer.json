@@ -1,0 +1,18 @@
+// For format details, see https://aka.ms/devcontainer.json.
+{
+    "name": "OpenXLA devcontainer",
+    "build":  {
+        "dockerfile": "Dockerfile"
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "username": "vscode",
+            "upgradePackages": "false"
+        }
+    },
+    "remoteUser": "vscode",
+    "postCreateCommand": {
+        "submodules": "git submodule update --recursive --init --depth=1"
+    },
+    "waitFor": "postCreateCommand"
+}

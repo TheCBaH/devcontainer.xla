@@ -1,0 +1,87 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+    - name: cache
+      run: |
+        set -eux
+        if [ "$(stat --format %d /mnt)" != "$(stat --format %d .)" ]; then
+          df -h /mnt
+          sudo mkdir /mnt/.cache
+          sudo chown ${USER} /mnt/.cache
+          mkdir .cache
+          sudo mount --bind /mnt/.cache .cache
+        fi
+    - name: devcontainer
+      uses: ./.github/workflows/actions/devcontainer
+      id: devcontainer
+    - name: setup
+      run: |
+        echo 'EXEC=${{ steps.devcontainer.outputs.exec }}' >> $GITHUB_ENV
+    - name: disk space - start
+      run: |
+        ${{ env.EXEC }} df -h
+        df -h
+    - name: configure
+      run: |
+        ${{ env.EXEC }} make configure WITH_CLANG=1
+    - name: Cache Bazel repo
+      id: bazel-repo
+      uses: actions/cache@v4
+      with:
+        path: .cache/bazel-repo
+        key: bazel-repo-${{ hashFiles( 'xla/*.bzl', 'xla/WORKSPACE', 'xla/.bazel*', 'xla/*.bazelrc') }}
+    - name: Cache Bazel build
+      id: bazel-cache
+      uses: actions/cache@v4
+      with:
+        path: .cache/bazel-build
+        key: bazel-build-${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazel*', 'xla/*.bazelrc') }}-${{ github.run_id }}
+        restore-keys: |
+          bazel-build-${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazel*', 'xla/*.bazelrc') }}
+          bazel-build
+    - name: fetch
+      run: |
+        ${{ env.EXEC }} make fetch
+    - name: build
+      run: |
+        ${{ env.EXEC }} make build
+    - name: run
+      run: |
+        ${{ env.EXEC }} make run
+    - name: hlo
+      run: |
+        ${{ env.EXEC }} make hlo
+    - name: disk space
+      run: |
+        ${{ env.EXEC }} df -h
+        df -h
+        du -sh .cache/*
+        du -sh hlo/
+    - name: Upload HLO Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: hlo-artifacts
+        path: hlo/
+    - name: Release File
+      if: github.ref_type == 'tag'
+      run: |
+        tar -ck hlo | xz -T0 -z > hlo.tar.xz
+        tar -tvf hlo.tar.xz
+    - name: Release
+      uses: softprops/action-gh-release@v2
+      if: github.ref_type == 'tag'
+      with:
+          files: |
+            hlo.tar.xz
