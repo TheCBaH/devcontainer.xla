@@ -1,0 +1,43 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+    - name: devcontainer
+      uses: ./.github/workflows/actions/devcontainer
+      id: devcontainer
+    - name: setup
+      run: |
+        echo 'EXEC=${{ steps.devcontainer.outputs.exec }}' >> $GITHUB_ENV
+    - name: Cache Models
+      id: cache-models
+      uses: actions/cache@v4
+      with:
+        path: .cache
+        key: ${{ hashFiles('Makefile') }}-models
+    - name: cache
+      run: |
+        mkdir -p .cache
+        ${{ env.EXEC }} sh -ceux 'mkdir -p ~/.cache'
+        ${{ env.EXEC }} sh -ceux 'mv .cache ~/.cache/llama.cpp'
+    - name: cpu
+      run: |
+        ${{ env.EXEC }} make cpu
+    - name: cuda
+      run: |
+        ${{ env.EXEC }} sudo sh -ceux 'cd /usr/local/cuda/lib64/stubs/;rm -f libcuda.so.1;ln -s libcuda.so libcuda.so.1'
+        ${{ env.EXEC }} env LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs make cuda
+    - name: cache-save
+      run: |
+        rm -rf .cache
+        ${{ env.EXEC }} sh -ceux 'mv -v ~/.cache/llama.cpp .cache'
