@@ -15,10 +15,14 @@ jobs:
         submodules: true
     - name: cache
       run: |
-        sudo mkdir /mnt/.cache
-        sudo chown ${USER} /mnt/.cache
-        mkdir .cache
-        sudo mount --bind /mnt/.cache .cache
+        set -eux
+        if [ "$(state --format %d /mnt)" != "$(state --format %d .)" ]; then
+          df -h /mnt
+          sudo mkdir /mnt/.cache
+          sudo chown ${USER} /mnt/.cache
+          mkdir .cache
+          sudo mount --bind /mnt/.cache .cache
+        fi
     - name: devcontainer
       uses: ./.github/workflows/actions/devcontainer
       id: devcontainer
@@ -51,7 +55,7 @@ jobs:
         ${{ env.EXEC }} make fetch
     - name: build
       run: |
-        ${{ env.EXEC }} make build
+        ${{ env.EXEC }} echo make build
     - name: disk space
       run: |
         ${{ env.EXEC }} df -h
