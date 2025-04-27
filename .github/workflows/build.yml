@@ -16,7 +16,7 @@ jobs:
     - name: cache
       run: |
         set -eux
-        if [ "$(state --format %d /mnt)" != "$(state --format %d .)" ]; then
+        if [ "$(stat --format %d /mnt)" != "$(stat --format %d .)" ]; then
           df -h /mnt
           sudo mkdir /mnt/.cache
           sudo chown ${USER} /mnt/.cache
