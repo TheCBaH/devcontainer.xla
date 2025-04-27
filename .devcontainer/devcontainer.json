@@ -1,26 +1,14 @@
 // For format details, see https://aka.ms/devcontainer.json.
 {
-    "name": "LLAMA.CPP devcontainer",
+    "name": "OpenXLA devcontainer",
     "build":  {
-        "dockerfile": "Dockerfile",
+        "dockerfile": "Dockerfile"
     },
     "features": {
         "ghcr.io/devcontainers/features/common-utils:2": {
-            "installZsh": "true",
             "username": "vscode",
-            "userUid": "1000",
-            "userGid": "1000",
             "upgradePackages": "false"
-        },
-        "ghcr.io/devcontainers/features/nvidia-cuda:1": {
-            "installToolkit": "true"
-        },
-        "./features/apt-packages": {
-            "packages": "libcurl4-openssl-dev"
-        },
-    },
-    "hostRequirements": {
-        "gpu": "optional"
+        }
     },
     "remoteUser": "vscode",
     "postCreateCommand": {
