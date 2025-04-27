@@ -36,7 +36,7 @@ jobs:
         ${{ env.EXEC }} make configure
     - name: fetch
       run: |
-        ${{ env.EXEC }} make build
+        ${{ env.EXEC }} make fetch
     - name: build
       run: |
         ${{ env.EXEC }} echo make build
