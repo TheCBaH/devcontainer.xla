@@ -15,10 +15,8 @@ jobs:
         submodules: true
     - name: cache
       run: |
-        echo git apply .github/workflows/devcontainer.patch
         sudo mkdir /mnt/.cache
         sudo chown ${USER} /mnt/.cache
-        mkdir /mnt/.cache/foo
         mkdir .cache
         sudo mount --bind /mnt/.cache .cache
     - name: devcontainer
@@ -31,7 +29,6 @@ jobs:
       run: |
         ${{ env.EXEC }} df -h
         df -h
-        du -sh .cache/*
     - name: Cache Bazel repo
       id: bazel-repo
       uses: actions/cache@v4
@@ -54,7 +51,7 @@ jobs:
         ${{ env.EXEC }} make fetch
     - name: build
       run: |
-        ${{ env.EXEC }} echo make build
+        ${{ env.EXEC }} make build
     - name: disk space
       run: |
         ${{ env.EXEC }} df -h
