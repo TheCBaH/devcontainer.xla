@@ -19,9 +19,27 @@ jobs:
     - name: setup
       run: |
         echo 'EXEC=${{ steps.devcontainer.outputs.exec }}' >> $GITHUB_ENV
+    - name: Cache Bazel repo
+      id: bazel-repo
+      uses: actions/cache@v4
+      with:
+        path: .cache/bazel-build
+        key: ${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazelrc', 'xla/*.bazelrc') }}-bazel-repo
+    - name: Cache Bazel build
+      id: bazel-repo
+      uses: actions/cache@v4
+      with:
+        path: .cache/bazel-build
+        key: ${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazelrc', 'xla/*.bazelrc') }}-bazel-repo
     - name: configure
       run: |
         ${{ env.EXEC }} make configure
-    - name: build
+    - name: fetch
       run: |
         ${{ env.EXEC }} make build
+    - name: build
+      run: |
+        ${{ env.EXEC }} echo make build
+    - name: disk space
+      run: |
+        ${{ env.EXEC }} df -h
