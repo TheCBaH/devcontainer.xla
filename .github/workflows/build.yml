@@ -15,15 +15,23 @@ jobs:
         submodules: true
     - name: cache
       run: |
-        git apply .github/workflows/devcontainer.patch
+        echo git apply .github/workflows/devcontainer.patch
         sudo mkdir /mnt/.cache
         sudo chown ${USER} /mnt/.cache
+        mkdir /mnt/.cache/foo
+        mkdir .cache
+        sudo mount --bind /mnt/.cache .cache
     - name: devcontainer
       uses: ./.github/workflows/actions/devcontainer
       id: devcontainer
     - name: setup
       run: |
         echo 'EXEC=${{ steps.devcontainer.outputs.exec }}' >> $GITHUB_ENV
+    - name: disk space - start
+      run: |
+        ${{ env.EXEC }} df -h
+        df -h
+        du -sh .cache/*
     - name: Cache Bazel repo
       id: bazel-repo
       uses: actions/cache@v4
