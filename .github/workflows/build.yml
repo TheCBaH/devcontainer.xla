@@ -55,7 +55,7 @@ jobs:
         ${{ env.EXEC }} make fetch
     - name: build
       run: |
-        ${{ env.EXEC }} echo make build
+        ${{ env.EXEC }} make build
     - name: disk space
       run: |
         ${{ env.EXEC }} df -h
