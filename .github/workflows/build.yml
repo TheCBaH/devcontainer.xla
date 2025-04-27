@@ -23,10 +23,10 @@ jobs:
       id: bazel-repo
       uses: actions/cache@v4
       with:
-        path: .cache/bazel-build
+        path: .cache/bazel-repo
         key: ${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazelrc', 'xla/*.bazelrc') }}-bazel-repo
     - name: Cache Bazel build
-      id: bazel-repo
+      id: bazel-cache
       uses: actions/cache@v4
       with:
         path: .cache/bazel-build
@@ -43,3 +43,5 @@ jobs:
     - name: disk space
       run: |
         ${{ env.EXEC }} df -h
+        df -h
+        du -sh .cache/*
