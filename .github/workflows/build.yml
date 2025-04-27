@@ -24,13 +24,15 @@ jobs:
       uses: actions/cache@v4
       with:
         path: .cache/bazel-repo
-        key: ${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazelrc', 'xla/*.bazelrc') }}-bazel-repo
+        key: bazel-repo-${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazelrc', 'xla/*.bazelrc') }}
     - name: Cache Bazel build
       id: bazel-cache
       uses: actions/cache@v4
       with:
         path: .cache/bazel-build
-        key: ${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazelrc', 'xla/*.bazelrc') }}-bazel-repo
+        key: bazel-build-${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazelrc', 'xla/*.bazelrc') }}-${{ github.run_id }}
+        restore-keys: |
+          bazel-build-${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazelrc', 'xla/*.bazelrc') }}
     - name: configure
       run: |
         ${{ env.EXEC }} make configure
