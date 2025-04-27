@@ -1,6 +1,7 @@
 ARG VARIANT=24.04
 FROM ubuntu:${VARIANT}
 RUN set -eux;\
+    userdel -r ubuntu;\
     apt-get update;\
     export DEBIAN_FRONTEND=noninteractive; apt-get install -y --no-install-recommends\
   build-essential\
