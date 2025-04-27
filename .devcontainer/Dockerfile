@@ -7,8 +7,6 @@ RUN set -eux;\
   build-essential\
   ca-certificates\
   curl\
-  g++-10\
-  gcc-10\
   gdb\
   git\
   python3\

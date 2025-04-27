@@ -1,7 +1,7 @@
 all: configure build
 
 configure:
-	set -eux;cd xla;./configure.py --backend CPU --host_compiler GCC --gcc_path /usr/bin/gcc-10
+	set -eux;cd xla;./configure.py --backend CPU --host_compiler GCC --gcc_path /usr/bin/gcc
 
 BAZEL=set -eux;cd xla;bazel --output_base ${CURDIR}/.cache/bazel
 BAZEL_OPTS=--repository_cache=${CURDIR}/.cache/bazel-repo --disk_cache=${CURDIR}/.cache/bazel-build
