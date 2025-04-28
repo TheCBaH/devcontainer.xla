@@ -13,7 +13,8 @@ BAZEL_OPTS=--repository_cache=${CURDIR}/.cache/bazel-repo --disk_cache=${CURDIR}
 
 TARGET.pjrt=//xla/pjrt/c:pjrt_c_api_cpu_plugin.so
 TARGET.builder=//xla/hlo/builder:xla_builder
-TARGET=//cpp:hlo_example
+#TARGET=//cpp:hlo_example
+TARGET=@xla//xla/pjrt/c:pjrt_c_api_cpu_plugin.so
 
 BAZEL_BUILD_OPTS=${BAZEL_OPTS} --define use_stablehlo=true
 

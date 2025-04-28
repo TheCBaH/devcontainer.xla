@@ -1,5 +1,6 @@
 .cache
 .bazelrc
 WORKSPACE
+bazel-*
 *.bazelrc
 .bazel*
