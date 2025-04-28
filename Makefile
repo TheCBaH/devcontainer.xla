@@ -7,14 +7,15 @@ configure: xla.configure
 	cp -vpf $(addprefix xla/,.bazelversion .bazelrc *.bazelrc WORKSPACE) .
 	git apply <WORKSPACE.patch
 
-#BAZEL=set -eux;cd xla;bazel --output_base ${CURDIR}/.cache/bazel
-BAZEL=bazel --output_base ${CURDIR}/.cache/bazel
+BAZEL=set -eux;cd xla;bazel --output_base ${CURDIR}/.cache/bazel
+#BAZEL=bazel --output_base ${CURDIR}/.cache/bazel
 BAZEL_OPTS=--repository_cache=${CURDIR}/.cache/bazel-repo --disk_cache=${CURDIR}/.cache/bazel-build
 
 TARGET.pjrt=//xla/pjrt/c:pjrt_c_api_cpu_plugin.so
 TARGET.builder=//xla/hlo/builder:xla_builder
 #TARGET=//cpp:hlo_example
-TARGET=@xla//xla/pjrt/c:pjrt_c_api_cpu_plugin.so
+#TARGET=@xla//xla/pjrt/c:pjrt_c_api_cpu_plugin.so @xla//xla/examples/axpy:stablehlo_compile_test
+TARGET=//xla/pjrt/c:pjrt_c_api_cpu_plugin.so //xla/examples/axpy:stablehlo_compile_test
 
 BAZEL_BUILD_OPTS=${BAZEL_OPTS} --define use_stablehlo=true
 
@@ -28,7 +29,7 @@ build:
 	${BAZEL} build ${BAZEL_BUILD_OPTS} ${TARGET}
 
 run:
-	${BAZEL} run ${BAZEL_BUILD_OPTS} ${TARGET}
+	${BAZEL} run ${BAZEL_BUILD_OPTS} xla/examples/axpy:stablehlo_compile_test
 
 #build: fetch pjrt.build builder.build
 

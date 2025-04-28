@@ -41,7 +41,7 @@ jobs:
       uses: actions/cache@v4
       with:
         path: .cache/bazel-repo
-        key: bazel-repo-${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazelrc', 'xla/*.bazelrc') }}
+        key: bazel-repo-${{ hashFiles('WORKSPACE', 'xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazelrc', 'xla/*.bazelrc') }}
     - name: Cache Bazel build
       id: bazel-cache
       uses: actions/cache@v4
