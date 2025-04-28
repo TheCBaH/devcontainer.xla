@@ -29,7 +29,9 @@ build:
 	${BAZEL} build ${BAZEL_BUILD_OPTS} ${TARGET}
 
 run:
-	${BAZEL} run ${BAZEL_BUILD_OPTS} xla/examples/axpy:stablehlo_compile_test
+	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/examples/axpy:stablehlo_compile_test 
+	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/pjrt/c:pjrt_c_api_cpu_test
+	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/pjrt/cpu:cpu_client_test
 
 #build: fetch pjrt.build builder.build
 
