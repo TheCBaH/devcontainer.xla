@@ -6,6 +6,7 @@ xla.configure:
 configure: xla.configure
 	cp -vpf $(addprefix xla/,.bazelversion .bazelrc *.bazelrc WORKSPACE) .
 	git apply <WORKSPACE.patch
+	git apply <cpu_client_test.patch
 
 BAZEL=set -eux;cd xla;bazel --output_base ${CURDIR}/.cache/bazel
 #BAZEL=bazel --output_base ${CURDIR}/.cache/bazel
@@ -32,6 +33,7 @@ run:
 	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/examples/axpy:stablehlo_compile_test 
 	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/pjrt/c:pjrt_c_api_cpu_test
 	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/pjrt/cpu:cpu_client_test
+	cp -v .cache/bazel/execroot/xla/bazel-out/k8-opt/bin/xla/pjrt/cpu/cpu_client_test.runfiles/xla/*.pb hlo
 
 #build: fetch pjrt.build builder.build
 
