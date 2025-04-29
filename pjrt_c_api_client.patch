@@ -1,0 +1,34 @@
+diff --git a/xla/pjrt/pjrt_c_api_client.cc b/xla/pjrt/pjrt_c_api_client.cc
+index cf9e35a..ffdb7a4 100644
+--- a/xla/pjrt/pjrt_c_api_client.cc
++++ b/xla/pjrt/pjrt_c_api_client.cc
+@@ -392,6 +392,21 @@ PjRtCApiClient::CompileAndLoad(const XlaComputation& computation,
+                                   module_str, format);
+ }
+ 
++static void write_hlo(const std::string& serialized, const char* name)
++{
++  const std::string _name = name;
++  const std::string file_name = _name + ".mlir.bc";
++  FILE* file = fopen(file_name.c_str(), "wb");
++  if (file == nullptr) {
++    return;
++  }
++  if (fwrite(serialized.data(), 1, serialized.size(), file) != serialized.size()) {
++  }
++  fprintf(stderr, "Written %s to file %s\n", name, file_name.c_str());
++  fclose(file);
++  return;
++}
++
+ absl::StatusOr<std::unique_ptr<PjRtLoadedExecutable>>
+ PjRtCApiClient::CompileAndLoad(mlir::ModuleOp module, CompileOptions options) {
+   if (!pjrt_c_api()) llvm::report_fatal_error("pjrt_c_api is null");
+@@ -410,6 +425,7 @@ PjRtCApiClient::CompileAndLoad(mlir::ModuleOp module, CompileOptions options) {
+   TF_ASSIGN_OR_RETURN(std::string serialized,
+                       xla::Serialize(module, version_string));
+   std::string format(pjrt::kMlirFormat);
++  write_hlo(serialized, "madx4");
+   return InitializeArgsAndCompile(this, c_api_, c_client_.get(), options,
+                                   serialized, format);
+ }

@@ -1,8 +1,8 @@
 diff --git a/xla/pjrt/cpu/cpu_client_test.cc b/xla/pjrt/cpu/cpu_client_test.cc
-index a625f2f..e3d29ce 100644
+index a625f2f..337c50f 100644
 --- a/xla/pjrt/cpu/cpu_client_test.cc
 +++ b/xla/pjrt/cpu/cpu_client_test.cc
-@@ -64,6 +64,24 @@ limitations under the License.
+@@ -64,6 +64,23 @@ limitations under the License.
  namespace xla {
  namespace {
  
@@ -23,11 +23,10 @@ index a625f2f..e3d29ce 100644
 +  return;
 +}
 +
-+
  using ::testing::Each;
  using ::testing::ElementsAre;
  using ::testing::ElementsAreArray;
-@@ -173,6 +191,7 @@ TEST(TfrtCpuClientTest, HloSnapshot) {
+@@ -173,6 +190,7 @@ TEST(TfrtCpuClientTest, HloSnapshot) {
    debug_opts->set_xla_dump_to(dir);
    debug_opts->set_xla_dump_hlo_snapshots(true);
    XlaComputation xla_computation(hlo_module->ToProto());
@@ -35,7 +34,7 @@ index a625f2f..e3d29ce 100644
    TF_ASSERT_OK_AND_ASSIGN(auto pjrt_executable,
                            client->CompileAndLoad(xla_computation, options));
  
-@@ -444,6 +463,7 @@ ENTRY Identity() -> f32[2, 2] {
+@@ -444,6 +462,7 @@ ENTRY Identity() -> f32[2, 2] {
  
    TF_ASSERT_OK_AND_ASSIGN(auto hlo_module,
                            ParseAndReturnUnverifiedModule(kProgram, {}));
