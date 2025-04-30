@@ -1,9 +1,0 @@
-HloModule jit_f, entry_computation_layout={(f32[])->f32[]}
-
-ENTRY main.5 {
-  Arg_0.1 = f32[] parameter(0)
-  multiply.3 = f32[] multiply(Arg_0.1, Arg_0.1)
-  constant.2 = f32[] constant(100)
-  ROOT divide.4 = f32[] divide(multiply.3, constant.2)
-}
-

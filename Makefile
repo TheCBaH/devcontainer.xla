@@ -29,13 +29,15 @@ fetch:
 
 build:
 	${BAZEL} build ${BAZEL_BUILD_OPTS} ${TARGET}
-
+	cp -pv xla/bazel-bin/xla/pjrt/c/pjrt_c_api_cpu_plugin.so.runfiles/xla/xla/pjrt/c/pjrt_c_api_cpu_plugin.so hlo/
+	cp -pv xla/xla/pjrt/c/pjrt_c_api.h hlo/
+	
 run:
 	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/examples/axpy:stablehlo_compile_test 
-	cp -v xla/bazel-bin/xla/examples/axpy/stablehlo_compile_test.runfiles/xla/*.mlir.bc hlo/
+	cp -pv xla/bazel-bin/xla/examples/axpy/stablehlo_compile_test.runfiles/xla/*.mlir.bc hlo/
 	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/pjrt/c:pjrt_c_api_cpu_test
 	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/pjrt/cpu:cpu_client_test
-	cp -v xla/bazel-bin/xla/pjrt/cpu/cpu_client_test.runfiles/xla/*.pb hlo/
+	cp -pv xla/bazel-bin/xla/pjrt/cpu/cpu_client_test.runfiles/xla/*.pb hlo/
 
 #build: fetch pjrt.build builder.build
 patches:
