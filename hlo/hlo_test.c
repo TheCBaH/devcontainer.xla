@@ -27,6 +27,14 @@ static int load_plugin(void)
     api = init_fn();
     assert(api != NULL);
     fprintf(stderr, "api: %d.%d\n", api->pjrt_api_version.major_version, api->pjrt_api_version.minor_version);
+    {
+        PJRT_Error* error;
+        PJRT_Plugin_Initialize_Args args;
+        args.struct_size = PJRT_Plugin_Initialize_Args_STRUCT_SIZE;
+        args.extension_start = NULL;
+        error = api->PJRT_Plugin_Initialize(&args);
+        assert (error == NULL);
+    }
     dlclose(handle);
     return 0;
 }
