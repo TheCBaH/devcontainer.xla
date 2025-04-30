@@ -64,6 +64,7 @@ jobs:
         ${{ env.EXEC }} df -h
         df -h
         du -sh .cache/*
+        du -sh hlo/
     - name: Upload HLO Artifacts
       uses: actions/upload-artifact@v4
       with:

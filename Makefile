@@ -19,7 +19,7 @@ TARGET.builder=//xla/hlo/builder:xla_builder
 #TARGET=@xla//xla/pjrt/c:pjrt_c_api_cpu_plugin.so @xla//xla/examples/axpy:stablehlo_compile_test
 TARGET=//xla/pjrt/c:pjrt_c_api_cpu_plugin.so //xla/examples/axpy:stablehlo_compile_test
 
-BAZEL_BUILD_OPTS=${BAZEL_OPTS} --define use_stablehlo=true
+BAZEL_BUILD_OPTS=${BAZEL_OPTS} --define use_stablehlo=true --compilation_mode fastbuild --strip=always --copt -Os
 
 fetch:
 	${BAZEL} fetch ${BAZEL_OPTS} ${TARGET}
@@ -44,12 +44,17 @@ patches:
 	git -C xla diff xla/pjrt/cpu > cpu_client_test.patch
 	git -C xla diff xla/pjrt/pjrt_c_api_client.cc > pjrt_c_api_client.patch
 
+log:
+	${BAZEL} info command_log
+
+
 .PHONY:\
  %.build\
  build\
  builder.build\
  configure\
  fetch\
+ log\
  patches\
  pjrt.build\
  xla.configure\
