@@ -59,6 +59,9 @@ jobs:
     - name: run
       run: |
         ${{ env.EXEC }} make run
+    - name: hlo
+      run: |
+        ${{ env.EXEC }} make hlo
     - name: disk space
       run: |
         ${{ env.EXEC }} df -h

@@ -49,6 +49,9 @@ patches:
 	git -C xla diff xla/pjrt/cpu > cpu_client_test.patch
 	git -C xla diff xla/pjrt/pjrt_c_api_client.cc > pjrt_c_api_client.patch
 
+hlo:
+	${MAKE} -C hlo run
+
 log:
 	${BAZEL} info command_log
 
@@ -59,6 +62,7 @@ log:
  builder.build\
  configure\
  fetch\
+ hlo\
  log\
  patches\
  pjrt.build\
