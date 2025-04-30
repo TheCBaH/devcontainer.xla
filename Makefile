@@ -8,6 +8,7 @@ configure: xla.configure
 	git apply <WORKSPACE.patch
 	git -C xla apply <cpu_client_test.patch
 	git -C xla apply <pjrt_c_api_client.patch
+	sed -ie 's/build -c opt//' xla/tensorflow.bazelrc
 
 BAZEL=set -eux;cd xla;bazel --output_base ${CURDIR}/.cache/bazel
 #BAZEL=bazel --output_base ${CURDIR}/.cache/bazel
@@ -20,6 +21,7 @@ TARGET.builder=//xla/hlo/builder:xla_builder
 TARGET=//xla/pjrt/c:pjrt_c_api_cpu_plugin.so //xla/examples/axpy:stablehlo_compile_test
 
 BAZEL_BUILD_OPTS=${BAZEL_OPTS} --define use_stablehlo=true --compilation_mode fastbuild --strip=always --copt -Os
+# --subcommands  
 
 fetch:
 	${BAZEL} fetch ${BAZEL_OPTS} ${TARGET}
@@ -29,7 +31,10 @@ fetch:
 
 build:
 	${BAZEL} build ${BAZEL_BUILD_OPTS} ${TARGET}
+	rm -f hlo/pjrt_c_api_cpu_plugin.so
 	cp -pv xla/bazel-bin/xla/pjrt/c/pjrt_c_api_cpu_plugin.so.runfiles/xla/xla/pjrt/c/pjrt_c_api_cpu_plugin.so hlo/
+	chmod +w hlo/pjrt_c_api_cpu_plugin.so
+	strip hlo/pjrt_c_api_cpu_plugin.so
 	cp -pv xla/xla/pjrt/c/pjrt_c_api.h hlo/
 	
 run:
