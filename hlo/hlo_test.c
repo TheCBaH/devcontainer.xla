@@ -29,10 +29,10 @@ static void handle_error(PJRT_Error* error, const PJRT_Api* api, const char* con
   // Get and print the error code
   PJRT_Error_GetCode_Args code_args = {0};
   code_args.struct_size = PJRT_Error_GetCode_Args_STRUCT_SIZE;
-  code_args.extension_start = NULL;
+  code_args.extension_start = NULL; 
   code_args.error = error;
   PJRT_Error* code_err = api->PJRT_Error_GetCode(&code_args);
-  if (code_err == NULL) {  
+  if (code_err == NULL) {
       fprintf(stderr, "PJRT Error Code: %d\n", code_args.code);  
   } else {
       // Handle error while getting error code (though unlikely)
@@ -43,7 +43,7 @@ static void handle_error(PJRT_Error* error, const PJRT_Api* api, const char* con
       api->PJRT_Error_Destroy(&destroy_code_err_args);
       fprintf(stderr, "Could not retrieve error code.\n");
       
-  }  
+  }
 
   PJRT_Error_Destroy_Args destroy_args = {0};
   destroy_args.struct_size = PJRT_Error_Destroy_Args_STRUCT_SIZE; // Ensure struct_size is set
@@ -66,7 +66,7 @@ static void print_plugin_attributes(const PJRT_Api* api) {
     for (size_t i = 0; i < attr_args.num_attributes; ++i) {
         const PJRT_NamedValue* attr = &attr_args.attributes[i];
         // Print attribute index and name safely
-        printf("  Attribute %zu: Name='%.*s', Type=%d, Size=%zu, Value=", 
+        printf("  Attribute %zu: Name='%.*s', Type=%d, Size=%zu, Value=",
                i, (int)attr->name_size, attr->name ? attr->name : "[NULL NAME]", attr->type, attr->value_size);
 
         switch (attr->type) {
@@ -82,13 +82,13 @@ static void print_plugin_attributes(const PJRT_Api* api) {
                 printf("["); // Corrected string formatting
                 // Check if int64_array_value is NULL before dereferencing
                 if (attr->int64_array_value != NULL) {
-                    for (size_t j = 0; j < attr->value_size; ++j) {                                          
-                    printf("%lld%s", (long long)attr->int64_array_value[j], 
+                    for (size_t j = 0; j < attr->value_size; ++j) {
+                    printf("%lld%s", (long long)attr->int64_array_value[j],
                             (j == attr->value_size - 1) ? "" : ", ");
                     }
-                } else {                    
+                } else {
                     printf("[NULL ARRAY]");
-                }
+                } 
                 printf("]\n");
                 break;
             case PJRT_NamedValue_kFloat:
