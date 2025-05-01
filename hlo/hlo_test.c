@@ -14,85 +14,79 @@ static void handle_error(PJRT_Error* error, const PJRT_Api* api, const char* con
     return;
   }
   fprintf(stderr, "PJRT Error in %s: ", context);
-  PJRT_Error_Message_Args msg_args = {sizeof(PJRT_Error_Message_Args)};
-  msg_args.struct_size = PJRT_Error_Message_Args_STRUCT_SIZE; // Ensure struct_size is set
+  PJRT_Error_Message_Args msg_args;
+  msg_args.struct_size = PJRT_Error_Message_Args_STRUCT_SIZE;
   msg_args.extension_start = NULL;
   msg_args.error = error;
   api->PJRT_Error_Message(&msg_args);
   // Use fprintf for stderr and handle potential null message
   if (msg_args.message != NULL) {
-      fprintf(stderr, "%.*s
-", (int)msg_args.message_size, msg_args.message);
+      fprintf(stderr, "%.*s\n", (int)msg_args.message_size, msg_args.message);
   } else {
-      fprintf(stderr, "[No error message provided]
-");
+      fprintf(stderr, "[No error message provided]\n");
   }
 
   // Get and print the error code
-  PJRT_Error_GetCode_Args code_args = {sizeof(PJRT_Error_GetCode_Args)};
-  code_args.struct_size = PJRT_Error_GetCode_Args_STRUCT_SIZE; // Ensure struct_size is set
+  PJRT_Error_GetCode_Args code_args = {0};
+  code_args.struct_size = PJRT_Error_GetCode_Args_STRUCT_SIZE;
   code_args.extension_start = NULL;
   code_args.error = error;
   PJRT_Error* code_err = api->PJRT_Error_GetCode(&code_args);
-  if (code_err == NULL) {
-      fprintf(stderr, "PJRT Error Code: %d
-", code_args.code);
+  if (code_err == NULL) {  
+      fprintf(stderr, "PJRT Error Code: %d\n", code_args.code);  
   } else {
       // Handle error while getting error code (though unlikely)
-       PJRT_Error_Destroy_Args destroy_code_err_args = {sizeof(PJRT_Error_Destroy_Args)};
-       destroy_code_err_args.struct_size = PJRT_Error_Destroy_Args_STRUCT_SIZE;
-       destroy_code_err_args.extension_start = NULL;
-       destroy_code_err_args.error = code_err;
-       api->PJRT_Error_Destroy(&destroy_code_err_args);
-       fprintf(stderr, "Could not retrieve error code.
-");
-  }
+      PJRT_Error_Destroy_Args destroy_code_err_args;
+      destroy_code_err_args.struct_size = PJRT_Error_Destroy_Args_STRUCT_SIZE;
+      destroy_code_err_args.extension_start = NULL;
+      destroy_code_err_args.error = code_err;
+      api->PJRT_Error_Destroy(&destroy_code_err_args);
+      fprintf(stderr, "Could not retrieve error code.\n");
+      
+  }  
 
-
-  PJRT_Error_Destroy_Args destroy_args = {sizeof(PJRT_Error_Destroy_Args)};
+  PJRT_Error_Destroy_Args destroy_args = {0};
   destroy_args.struct_size = PJRT_Error_Destroy_Args_STRUCT_SIZE; // Ensure struct_size is set
   destroy_args.extension_start = NULL;
   destroy_args.error = error;
   api->PJRT_Error_Destroy(&destroy_args);
-  exit(EXIT_FAILURE); // Exit after handling the error
+  exit(EXIT_FAILURE); 
 }
 
 // --- Function to get and print plugin attributes ---
 static void print_plugin_attributes(const PJRT_Api* api) {
-    PJRT_Plugin_Attributes_Args attr_args = {sizeof(PJRT_Plugin_Attributes_Args)};
+    PJRT_Plugin_Attributes_Args attr_args = {0};
     attr_args.struct_size = PJRT_Plugin_Attributes_Args_STRUCT_SIZE; // Set struct_size
     attr_args.extension_start = NULL;
     PJRT_Error* attr_error = api->PJRT_Plugin_Attributes(&attr_args);
     handle_error(attr_error, api, "PJRT_Plugin_Attributes"); // Use helper
 
-    printf("PJRT Plugin Attributes (Count: %zu):
-", attr_args.num_attributes);
+    printf("PJRT Plugin Attributes (Count: %zu):\n", attr_args.num_attributes);
 
     for (size_t i = 0; i < attr_args.num_attributes; ++i) {
         const PJRT_NamedValue* attr = &attr_args.attributes[i];
         // Print attribute index and name safely
-        printf("  Attribute %zu: Name='%.*s', Type=%d, Size=%zu, Value=",
+        printf("  Attribute %zu: Name='%.*s', Type=%d, Size=%zu, Value=", 
                i, (int)attr->name_size, attr->name ? attr->name : "[NULL NAME]", attr->type, attr->value_size);
 
         switch (attr->type) {
             case PJRT_NamedValue_kString:
                 // Ensure string_value is not NULL before printing
                 printf("'%.*s'\n", (int)attr->value_size, attr->string_value ? attr->string_value : "[NULL STRING]");
-                break;
+                break; 
             case PJRT_NamedValue_kInt64:
                 // Cast to long long for portability with printf
-                printf("%lld
-", (long long)attr->int64_value);
+                printf("%lld\n", (long long)attr->int64_value);
                 break;
             case PJRT_NamedValue_kInt64List:
-                printf("[");
+                printf("["); // Corrected string formatting
                 // Check if int64_array_value is NULL before dereferencing
                 if (attr->int64_array_value != NULL) {
-                    for (size_t j = 0; j < attr->value_size; ++j) {
-                    printf("%lld%s", (long long)attr->int64_array_value[j],
+                    for (size_t j = 0; j < attr->value_size; ++j) {                                          
+                    printf("%lld%s", (long long)attr->int64_array_value[j], 
                             (j == attr->value_size - 1) ? "" : ", ");
                     }
-                } else {
+                } else {                    
                     printf("[NULL ARRAY]");
                 }
                 printf("]\n");
@@ -107,7 +101,7 @@ static void print_plugin_attributes(const PJRT_Api* api) {
                 printf("[Unknown Type %d]\n", attr->type);
         }
     }
-     printf("Finished printing attributes.\n");
+    printf("Finished printing attributes.\n");
 }
 // --- End of print_plugin_attributes function ---
 
@@ -148,12 +142,12 @@ static int load_plugin(void)
 
 
     {
-        PJRT_Error* error;
-        PJRT_Plugin_Initialize_Args args;
+        PJRT_Error* error = NULL;
+        PJRT_Plugin_Initialize_Args args = {0};
         args.struct_size = PJRT_Plugin_Initialize_Args_STRUCT_SIZE;
         args.extension_start = NULL;
         error = api->PJRT_Plugin_Initialize(&args);
-        // Use the helper function for error handling
+        // Use the helper function for error handling       
        handle_error(error, api, "PJRT_Plugin_Initialize");
        printf("PJRT Plugin Initialized successfully.\n"); // Use printf for standard output
     }
