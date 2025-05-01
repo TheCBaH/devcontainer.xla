@@ -150,16 +150,13 @@ static int load_plugin(void)
                     } else {
                         printf("[NULL ARRAY]");
                     }
-                    printf("]
-");
+                    printf("]\n");
                     break;
                 case PJRT_NamedValue_kFloat:
-                    printf("%f
-", attr->float_value);
+                    printf("%f\n", attr->float_value);
                     break;
                 case PJRT_NamedValue_kBool:
-                    printf("%s
-", attr->bool_value ? "true" : "false");
+                    printf("%s\n", attr->bool_value ? "true" : "false");
                     break;
                 default:
                     printf("[Unknown Type %d]
