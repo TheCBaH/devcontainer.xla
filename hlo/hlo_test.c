@@ -108,7 +108,7 @@ static void print_plugin_attributes(const PJRT_Api* api) {
 
 static int load_plugin(void)
 {
-    static const char plugin[] = "pjrt_c_api_cpu_plugin.so";
+    static const char plugin[] = "./pjrt_c_api_cpu_plugin.so";
     pjrt_init init_fn;
     const PJRT_Api* api;
     void *handle = dlopen(plugin, RTLD_LAZY);
