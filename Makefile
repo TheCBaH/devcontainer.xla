@@ -10,9 +10,11 @@ configure: xla.configure
 	git -C xla apply <pjrt_c_api_client.patch
 	sed -ie 's/build -c opt//' xla/tensorflow.bazelrc
 
-BAZEL=set -eux;cd xla;bazel --output_base ${CURDIR}/.cache/bazel
-#BAZEL=bazel --output_base ${CURDIR}/.cache/bazel
-BAZEL_OPTS=--repository_cache=${CURDIR}/.cache/bazel-repo --disk_cache=${CURDIR}/.cache/bazel-build
+BAZEL_CACHE_PERSISTENT=${CURDIR}/.cache/bazel
+BAZEL_CACHE=${CURDIR}/.cache/bazel
+BAZEL=set -eux;cd xla;bazel --output_base ${BAZEL_CACHE}
+#BAZEL=bazel --output_base ${BAZEL_CACHE}
+BAZEL_OPTS=--repository_cache=${BAZEL_CACHE_PERSISTENT}-repo --disk_cache=${BAZEL_CACHE_PERSISTENT}-build
 
 TARGET.pjrt=//xla/pjrt/c:pjrt_c_api_cpu_plugin.so
 TARGET.builder=//xla/hlo/builder:xla_builder
