@@ -106,6 +106,19 @@ static void print_plugin_attributes(const PJRT_Api* api) {
 // --- End of print_plugin_attributes function ---
 
 
+static int close_plugin(void* handle, const char* plugin, const char* message) {
+    if (message != NULL) {
+        fprintf(stderr, "%s\n", message);
+    }
+    if (handle) {
+        if (dlclose(handle) != 0) {
+            fprintf(stderr, "Error closing plugin '%s': %s\n", plugin, dlerror());
+        }
+    }
+
+    return 1;
+}
+
 static int load_plugin(void)
 {
     static const char plugin[] = "./pjrt_c_api_cpu_plugin.so";
@@ -114,23 +127,20 @@ static int load_plugin(void)
     void *handle = dlopen(plugin, RTLD_LAZY);
     if (!handle) {
         fprintf(stderr, "Error loading plugin '%s': %s\n", plugin, dlerror());
-        return 1;
+        return close_plugin(handle, plugin, NULL);
     }
 
     init_fn = (pjrt_init)dlsym(handle, "GetPjrtApi");
     if (!init_fn) {
-        fprintf(stderr, "Error finding symbol 'GetPjrtApi' in '%s': %s\n", plugin, dlerror());
-        dlclose(handle);
-        return 1;
+        return close_plugin(handle, plugin, "Error finding symbol 'GetPjrtApi'");
     }
     api = init_fn();
     if (api == NULL) {
-         fprintf(stderr, "Error: GetPjrtApi returned NULL\n");
-         dlclose(handle);
-         return 1;
+        return close_plugin(handle, plugin, "Error: GetPjrtApi returned NULL");
     }
     fprintf(stderr, "Loaded PJRT Plugin: %s\n", plugin);
-    fprintf(stderr, "Reported PJRT API Version: %d.%d\n", api->pjrt_api_version.major_version, api->pjrt_api_version.minor_version);
+    fprintf(stderr, "Reported PJRT API Version: %d.%d\n", api->pjrt_api_version.major_version,
+            api->pjrt_api_version.minor_version);
     // Basic API struct size check
     if (api->struct_size < PJRT_Api_STRUCT_SIZE) {
          fprintf(stderr, "Error: Loaded PJRT_Api struct size (%zu) is smaller than expected (%d).\n",
@@ -157,7 +167,7 @@ static int load_plugin(void)
 
     // Future client creation, device handling etc. would go here
 
-    dlclose(handle); // Close the handle after use
+    close_plugin(handle, plugin, NULL); // Close the handle after use
     return 0;
 }
 
