@@ -13,10 +13,40 @@ struct file_data {
     size_t size;
 };
 
+// --- Test Case Definition ---
+typedef struct {
+    const char* name;
+    const char* hlo_path;
+    const char* compile_options_path;
+    size_t num_inputs;
+    void** input_data; // Array of pointers to host data arrays
+    int64_t** input_dims; // Array of pointers to dimension arrays
+    size_t* input_num_dims; // Array of number of dimensions per input
+    PJRT_Buffer_Type* input_types; // Array of buffer types per input
+    // TODO: Add fields for expected output verification if needed
+} TestCase;
 
-// Helper function to handle PJRT errors
-// Returns 0 if error is NULL, 1 if an error occurred and was handled.
-// It now prints the error but does not exit, allowing the caller to manage cleanup.
+
+// --- Forward Declarations ---
+static int handle_error(PJRT_Error* error, const PJRT_Api* api, const char* context);
+static void print_plugin_attributes(const PJRT_Api* api);
+static int close_plugin(void* handle, const char* plugin, const char* message);
+static int read_file_to_buffer(const char* filename, struct file_data* file_data);
+static void free_file_data(struct file_data* file_data);
+static PJRT_Buffer* create_buffer_from_host(const PJRT_Api* api, PJRT_Client* client, PJRT_Device* device,
+                                            void* host_data, PJRT_Buffer_Type type,
+                                            const int64_t* dims, size_t num_dims,
+                                            const char* context_prefix);
+static void print_float_buffer(float* data, const int64_t* dims, size_t num_dims); // Updated signature
+static int execute_hlo_program(const PJRT_Api* api, PJRT_LoadedExecutable* executable,
+                               PJRT_Buffer** input_buffers, size_t num_inputs,
+                               PJRT_Buffer*** output_buffers_ptr, size_t* num_outputs_ptr);
+static int run_computation_test(const PJRT_Api* api, PJRT_Client* client, PJRT_Device* device,
+                                const TestCase* test_case);
+
+
+// --- Helper function to handle PJRT errors ---
+// (handle_error function remains the same)
 static int handle_error(PJRT_Error* error, const PJRT_Api* api, const char* context) {
   if (error == NULL) {
     return 0; // No error
@@ -62,7 +92,9 @@ static int handle_error(PJRT_Error* error, const PJRT_Api* api, const char* cont
   return 1; // Error occurred
 }
 
+
 // --- Function to get and print plugin attributes ---
+// (print_plugin_attributes function remains the same)
 static void print_plugin_attributes(const PJRT_Api* api) {
     PJRT_Plugin_Attributes_Args attr_args = {0};
     attr_args.struct_size = PJRT_Plugin_Attributes_Args_STRUCT_SIZE; // Set struct_size
@@ -82,7 +114,7 @@ static void print_plugin_attributes(const PJRT_Api* api) {
             case PJRT_NamedValue_kString:
                 // Ensure string_value is not NULL before printing
                 printf("'%.*s'\n", (int)attr->value_size, attr->string_value ? attr->string_value : "[NULL STRING]");
-                break; 
+                break;
             case PJRT_NamedValue_kInt64:
                 // Cast to long long for portability with printf
                 printf("%lld\n", (long long)attr->int64_value);
@@ -97,7 +129,7 @@ static void print_plugin_attributes(const PJRT_Api* api) {
                     }
                 } else {
                     printf("[NULL ARRAY]");
-                } 
+                }
                 printf("]\n");
                 break;
             case PJRT_NamedValue_kFloat:
@@ -112,9 +144,10 @@ static void print_plugin_attributes(const PJRT_Api* api) {
     }
     printf("Finished printing attributes.\n");
 }
-// --- End of print_plugin_attributes function ---
 
 
+// --- Function to close plugin ---
+// (close_plugin function remains the same)
 static int close_plugin(void* handle, const char* plugin, const char* message) {
     if (message != NULL) {
         fprintf(stderr, "%s\n", message);
@@ -128,7 +161,9 @@ static int close_plugin(void* handle, const char* plugin, const char* message) {
     return 1; // Indicate failure for consistency, though it might have closed successfully
 }
 
-// Function to read a file into a buffer
+
+// --- Function to read a file into a buffer ---
+// (read_file_to_buffer function remains the same)
 static int read_file_to_buffer(const char* filename, struct file_data* file_data) {
     FILE* file = fopen(filename, "rb");
     if (file == NULL) {
@@ -169,7 +204,10 @@ static int read_file_to_buffer(const char* filename, struct file_data* file_data
 
     return 0; // Success
 }
-// Frees space that was allocated by read_file_to_buffer
+
+
+// --- Function to free file data ---
+// (free_file_data function remains the same)
 static void free_file_data(struct file_data* file_data) {
     if (file_data->data != NULL) {
         free(file_data->data);
@@ -178,7 +216,9 @@ static void free_file_data(struct file_data* file_data) {
     }
 }
 
-// Helper function to create a buffer from host data
+
+// --- Helper function to create a buffer from host data ---
+// (create_buffer_from_host function remains the same)
 static PJRT_Buffer* create_buffer_from_host(const PJRT_Api* api, PJRT_Client* client, PJRT_Device* device,
                                             void* host_data, PJRT_Buffer_Type type,
                                             const int64_t* dims, size_t num_dims,
@@ -209,441 +249,41 @@ static PJRT_Buffer* create_buffer_from_host(const PJRT_Api* api, PJRT_Client* cl
     return create_buf_args.buffer;
 }
 
-// Helper function to print a 2D float buffer
-static void print_float_buffer(float* data, int rows, int cols) {
-    printf("Buffer Contents (%dx%d):\n", rows, cols);
-    for (int i = 0; i < rows; ++i) {
-        printf("  [");
-        for (int j = 0; j < cols; ++j) {
-            printf("%f%s", data[i * cols + j], (j == cols - 1) ? "" : ", ");
+
+// --- Helper function to print a float buffer ---
+// Updated to handle generic dimensions
+static void print_float_buffer(float* data, const int64_t* dims, size_t num_dims) {
+    if (num_dims == 2) {
+        int rows = dims[0];
+        int cols = dims[1];
+        printf("Buffer Contents (%dx%d):\n", rows, cols);
+        for (int i = 0; i < rows; ++i) {
+            printf("  [");
+            for (int j = 0; j < cols; ++j) {
+                printf("%f%s", data[i * cols + j], (j == cols - 1) ? "" : ", ");
+            }
+            printf("]\n");
         }
+    } else {
+        // Basic print for other dimensions
+        printf("Buffer Contents (Num Dims: %zu, First Dim: %ld, ...):\n  [", num_dims, dims[0]); // Use %ld for int64_t (long int)
+        size_t total_elements = 1;
+        for(size_t i=0; i<num_dims; ++i) total_elements *= dims[i];
+        size_t print_limit = total_elements < 10 ? total_elements : 10; // Print first few elements
+        for(size_t i=0; i<print_limit; ++i) {
+             printf("%f%s", data[i], (i == print_limit - 1) ? "" : ", ");
+        }
+        if (print_limit < total_elements) printf("...");
         printf("]\n");
     }
 }
 
 
-// Forward declaration for the new execute function
-static int execute_hlo_program(const PJRT_Api* api, PJRT_Client* client,
-                               PJRT_LoadedExecutable* executable,
-                               PJRT_Buffer** input_buffers, size_t num_inputs,
-                               PJRT_Buffer*** output_buffers, size_t* num_outputs);
-
-// Renamed and expanded function
-static int run_hlo_test(void)
-{
-    static const char plugin_path[] = "./pjrt_c_api_cpu_plugin.so";
-    static const char hlo_program_path[] = "./add.3x2.xla.pb"; // Use the provided path
-
-    pjrt_init init_fn;
-    const PJRT_Api* api = NULL;
-    void *handle = NULL;
-    PJRT_Client* client = NULL;
-    PJRT_LoadedExecutable* loaded_executable = NULL; // Revert to original type based on compile warning
-    struct file_data hlo_data = {NULL, 0};
-    struct file_data compile_options_data = {NULL, 0}; // Buffer for compile options proto
-    PJRT_Buffer** input_buffers = NULL; // Placeholder for input buffers
-    PJRT_Buffer** output_buffers = NULL; // Placeholder for output buffers
-    size_t num_outputs = 0; // Placeholder for number of outputs
-    int rc = 1; // Default to failure
-
-    handle = dlopen(plugin_path, RTLD_LAZY);
-    if (!handle) {
-        fprintf(stderr, "Error loading plugin '%s': %s\n", plugin_path, dlerror());
-        goto cleanup;
-    }
-
-    init_fn = (pjrt_init)dlsym(handle, "GetPjrtApi");
-    if (!init_fn) {
-        fprintf(stderr, "Error finding symbol 'GetPjrtApi' in %s\n", plugin_path);
-        goto cleanup;
-    }
-    api = init_fn();
-    if (api == NULL) {
-        fprintf(stderr, "Error: GetPjrtApi returned NULL\n");
-        goto cleanup;
-    }
-    fprintf(stderr, "Loaded PJRT Plugin: %s\n", plugin_path);
-    fprintf(stderr, "Reported PJRT API Version: %d.%d\n", api->pjrt_api_version.major_version,
-            api->pjrt_api_version.minor_version);
-
-    // Basic API struct size check
-    if (api->struct_size < PJRT_Api_STRUCT_SIZE) {
-         fprintf(stderr, "Error: Loaded PJRT_Api struct size (%zu) is smaller than expected (%d).\n",
-                 api->struct_size, PJRT_Api_STRUCT_SIZE);
-         goto cleanup;
-    }
-
-
-    {
-        PJRT_Error* error = NULL;
-        PJRT_Plugin_Initialize_Args args = {0};
-        args.struct_size = PJRT_Plugin_Initialize_Args_STRUCT_SIZE;
-        args.extension_start = NULL;
-        error = api->PJRT_Plugin_Initialize(&args);
-        if (handle_error(error, api, "PJRT_Plugin_Initialize")) {
-            goto cleanup;
-        }
-       printf("PJRT Plugin Initialized successfully.\n");
-    }
-
-    // Print attributes (optional, but kept from original)
-    print_plugin_attributes(api);
-
-    // Create Client
-    {
-        PJRT_Client_Create_Args create_args = {0};
-        create_args.struct_size = PJRT_Client_Create_Args_STRUCT_SIZE;
-        create_args.extension_start = NULL;
-        // create_options: Can be NULL or specify options like kv_store
-        create_args.create_options = NULL;
-        create_args.num_options = 0;
-        create_args.kv_get_callback = NULL;
-        create_args.kv_put_callback = NULL;
-        create_args.kv_get_user_arg = NULL;
-        create_args.kv_put_user_arg = NULL;
-
-        PJRT_Error* error = api->PJRT_Client_Create(&create_args);
-         if (handle_error(error, api, "PJRT_Client_Create")) {
-            goto cleanup;
-        }
-        client = create_args.client; // Get the created client
-        printf("PJRT Client created successfully.\n");
-    }
-    // Read HLO program file
-    if (read_file_to_buffer(hlo_program_path, &hlo_data) != 0) {
-        fprintf(stderr, "Failed to read HLO program file: %s\n", hlo_program_path);
-        goto cleanup;
-    }
-    printf("Read HLO program '%s' (%zu bytes).\n", hlo_program_path, hlo_data.size);
-
-    // Read Compile Options Proto file
-    static const char compile_options_path[] = "./compile_options.0.pb";
-    if (read_file_to_buffer(compile_options_path, &compile_options_data) != 0) {
-        fprintf(stderr, "Failed to read compile options file: %s\n", compile_options_path);
-        // Treat as fatal as it likely contains required info
-        goto cleanup;
-    }
-    printf("Read compile options proto '%s' (%zu bytes).\n", compile_options_path, compile_options_data.size);
-
-
-    // --- Get Addressable Devices ---
-    PJRT_Device* const* addressable_devices = NULL; // Match API type
-    size_t num_addressable_devices = 0;
-    PJRT_Device* target_device = NULL; // Device to run on
-    {
-        PJRT_Client_AddressableDevices_Args devices_args = {0};
-        devices_args.struct_size = PJRT_Client_AddressableDevices_Args_STRUCT_SIZE;
-        devices_args.extension_start = NULL;
-        devices_args.client = client;
-
-        PJRT_Error* devices_error = api->PJRT_Client_AddressableDevices(&devices_args);
-        if (handle_error(devices_error, api, "PJRT_Client_AddressableDevices")) {
-            goto cleanup;
-        }
-        addressable_devices = devices_args.addressable_devices; // Get the list
-        num_addressable_devices = devices_args.num_addressable_devices;
-        printf("Found %zu addressable devices.\n", num_addressable_devices);
-
-        if (num_addressable_devices == 0) {
-            fprintf(stderr, "Error: No addressable devices found.\n");
-            goto cleanup;
-        }
-        target_device = addressable_devices[0]; // Use the first device
-        printf("Using device 0 for execution.\n");
-        // Note: addressable_devices points to internal client memory, no need to free here.
-    }
-
-
-    // --- Create Input Buffers ---
-    const size_t num_inputs = 2; // The 'add' program takes two inputs
-    input_buffers = (PJRT_Buffer**)malloc(num_inputs * sizeof(PJRT_Buffer*));
-    if (input_buffers == NULL) {
-        fprintf(stderr, "Failed to allocate memory for input buffer array.\n");
-        goto cleanup;
-    }
-    for(size_t i=0; i<num_inputs; ++i) input_buffers[i] = NULL; // Initialize
-
-    float input_data_1[3][2] = {{1.0f, 2.0f}, {3.0f, 4.0f}, {5.0f, 6.0f}};
-    float input_data_2[3][2] = {{10.0f, 20.0f}, {30.0f, 40.0f}, {50.0f, 60.0f}};
-    int64_t dims[2] = {3, 2}; // Dimensions for 3x2 matrix
-    size_t num_dims = 2;
-
-    input_buffers[0] = create_buffer_from_host(api, client, target_device, input_data_1,
-                                               PJRT_Buffer_Type_F32, dims, num_dims, "Input 1");
-    if (input_buffers[0] == NULL) goto cleanup;
-
-    input_buffers[1] = create_buffer_from_host(api, client, target_device, input_data_2,
-                                               PJRT_Buffer_Type_F32, dims, num_dims, "Input 2");
-    if (input_buffers[1] == NULL) goto cleanup;
-
-    // Print input buffers for verification
-    printf("--- Input Buffer 1 ---\n");
-    print_float_buffer((float*)input_data_1, dims[0], dims[1]);
-    printf("--- Input Buffer 2 ---\n");
-    print_float_buffer((float*)input_data_2, dims[0], dims[1]);
-    printf("----------------------\n");
-
-
-    // Compile HLO program
-    {
-        PJRT_Program program = {0};
-        program.struct_size = PJRT_Program_STRUCT_SIZE;
-        program.extension_start = NULL;
-        program.format = "hlo"; // Specify format if known, or let PJRT infer
-        program.format_size = strlen(program.format);
-        program.code = hlo_data.data;
-        program.code_size = hlo_data.size;
-
-        PJRT_Client_Compile_Args compile_args = {0};
-        compile_args.struct_size = PJRT_Client_Compile_Args_STRUCT_SIZE;
-        compile_args.extension_start = NULL;
-        compile_args.client = client;
-        compile_args.program = &program;
-        compile_args.compile_options = compile_options_data.data; // Pass buffer data
-        compile_args.compile_options_size = compile_options_data.size; // Pass buffer size
-
-        PJRT_Error* error = api->PJRT_Client_Compile(&compile_args);
-        if (handle_error(error, api, "PJRT_Client_Compile")) {
-            goto cleanup; // Error during compilation
-        }
-        loaded_executable = compile_args.executable; // Assign to correct variable type (PJRT_LoadedExecutable*)
-        printf("PJRT_Client_Compile successful.\n");
-
-        // --- Get and print executable properties ---
-        if (loaded_executable != NULL) { // Check the correct variable
-            printf("Attempting to get executable properties...\n");
-
-            // Example: Get serialized executable size
-            // Using PJRT_Executable_Serialize function/args and the correct size member.
-
-            // Get PJRT_Executable* from PJRT_LoadedExecutable*
-            PJRT_LoadedExecutable_GetExecutable_Args get_exec_args = {0};
-            // Use the defined struct size macro
-            get_exec_args.struct_size = PJRT_LoadedExecutable_GetExecutable_Args_STRUCT_SIZE;
-            get_exec_args.extension_start = NULL;
-            get_exec_args.loaded_executable = loaded_executable;
-            PJRT_Executable* executable_from_loaded = NULL;
-            get_exec_args.executable = executable_from_loaded; // Output parameter
-
-            PJRT_Error* get_exec_error = api->PJRT_LoadedExecutable_GetExecutable(&get_exec_args);
-            if (handle_error(get_exec_error, api, "PJRT_LoadedExecutable_GetExecutable")) {
-                fprintf(stderr, "Could not get PJRT_Executable from PJRT_LoadedExecutable.\n");
-                // Continue cleanup even if this fails
-            } else {
-                executable_from_loaded = get_exec_args.executable; // Get the obtained executable
-
-                // Declare and initialize serialize_args here, closer to its use
-                PJRT_Executable_Serialize_Args serialize_args = {0};
-                // Use the defined struct size macro
-                serialize_args.struct_size = PJRT_Executable_Serialize_Args_STRUCT_SIZE;
-                serialize_args.extension_start = NULL;
-
-                // Pass the obtained PJRT_Executable* to the serialize function
-                serialize_args.executable = executable_from_loaded;
-
-                PJRT_Error* serialize_error = api->PJRT_Executable_Serialize(&serialize_args);
-                if (handle_error(serialize_error, api, "PJRT_Executable_Serialize")) {
-                    fprintf(stderr, "Could not serialize the executable to get its size.\n");
-                    // Continue cleanup even if serialization fails
-                } else {
-                    // Use the correct size member 'serialized_bytes_size' found in pjrt_c_api.h
-                    printf("Serialized executable size: %zu bytes\n", serialize_args.serialized_bytes_size);
-
-                    // IMPORTANT: Call the deleter provided by the Serialize function to free
-                    // the memory backing the serialized data, as specified in pjrt_c_api.h.
-                    if (serialize_args.serialized_executable_deleter != NULL &&
-                        serialize_args.serialized_executable != NULL) {
-                        printf("Calling serialized executable deleter.\n");
-                        serialize_args.serialized_executable_deleter(serialize_args.serialized_executable);
-                    } else {
-                         fprintf(stderr, "Warning: Serialized executable deleter or data is NULL.\n");
-                    }
-                }
-                // Note: The PJRT_Executable* obtained from PJRT_LoadedExecutable_GetExecutable
-                // is likely owned by the PJRT_LoadedExecutable and does not need separate destruction.
-                // If issues arise, consult the PJRT C API documentation for ownership rules.
-            }
-        } else {
-            fprintf(stderr, "Executable is NULL after compile, cannot get properties.\n");
-            goto cleanup; // Cannot proceed without executable
-        }
-        // --- End of getting executable properties ---
-
-        // --- Execute the program ---
-        if (loaded_executable != NULL) {
-             printf("Executing the compiled program...\n");
-
-             if (execute_hlo_program(api, client, loaded_executable,
-                                     input_buffers, num_inputs,
-                                     &output_buffers, &num_outputs) != 0) {
-                 fprintf(stderr, "Failed to execute HLO program.\n");
-                 goto cleanup;
-             }
-             printf("Execution successful. Received %zu output buffer(s).\n", num_outputs);
-
-             // --- Process Output Buffers ---
-             if (num_outputs > 0 && output_buffers != NULL && output_buffers[0] != NULL) {
-                 printf("Processing output buffer 0...\n");
-                 PJRT_Buffer* out_buf = output_buffers[0];
-
-                 // Get output buffer properties (assuming it's also F32 3x2)
-                 PJRT_Buffer_Dimensions_Args dim_args = {0};
-                 dim_args.struct_size = PJRT_Buffer_Dimensions_Args_STRUCT_SIZE;
-                 dim_args.buffer = out_buf;
-                 PJRT_Error* dim_err = api->PJRT_Buffer_Dimensions(&dim_args);
-                 if (handle_error(dim_err, api, "PJRT_Buffer_Dimensions (output)")) {
-                     // Don't goto cleanup, just skip processing this buffer
-                 } else {
-                     printf("Output buffer dimensions: %zu\n", dim_args.num_dims);
-                     if (dim_args.num_dims == 2) { // Expecting 2D
-                         size_t rows = dim_args.dims[0];
-                         size_t cols = dim_args.dims[1];
-                         size_t total_elements = rows * cols;
-                         size_t expected_byte_size = total_elements * sizeof(float); // Assuming F32
-
-                         // Allocate host buffer for output
-                         float* host_output_data = (float*)malloc(expected_byte_size);
-                         if (host_output_data == NULL) {
-                             fprintf(stderr, "Failed to allocate host memory for output buffer.\n");
-                         } else {
-                             // Copy data from device to host (assuming synchronous for now)
-                             PJRT_Buffer_ToHostBuffer_Args to_host_args = {0};
-                             to_host_args.struct_size = PJRT_Buffer_ToHostBuffer_Args_STRUCT_SIZE;
-                             to_host_args.src = out_buf;
-                             to_host_args.dst = host_output_data;
-                             to_host_args.dst_size = expected_byte_size;
-                             // Removed event handling as members/functions seem missing in this API version
-    
-                             PJRT_Error* to_host_error = api->PJRT_Buffer_ToHostBuffer(&to_host_args);
-    
-                             // Assume synchronous completion or handle error
-                             if (handle_error(to_host_error, api, "PJRT_Buffer_ToHostBuffer")) {
-                                 fprintf(stderr, "Failed to copy output buffer to host.\n");
-                             } else {
-                                 printf("Output buffer copied to host successfully.\n");
-                                 print_float_buffer(host_output_data, rows, cols);
-                             }
-                             free(host_output_data); // Free host buffer
-                         }
-                     } else {
-                         fprintf(stderr, "Unexpected output buffer dimensions: %zu\n", dim_args.num_dims);
-                     }
-                 }
-             } else if (num_outputs > 0) {
-                  fprintf(stderr, "Output buffer list exists, but buffer 0 is NULL.\n");
-             } else {
-                  printf("No output buffers to process.\n");
-             }
-             // --- End of processing output buffers ---
-
-        } else {
-             fprintf(stderr, "Executable is NULL, cannot execute.\n");
-             goto cleanup;
-        }
-        // --- End of execution ---
-
-
-    } // Closing brace for the block after PJRT_Client_Compile
-
-    rc = 0; // Mark as success
-
-cleanup:
-    // Free file buffers regardless of success/failure
-    printf("Freeing HLO program buffer.\n");
-    free_file_data(&hlo_data);
-    printf("Freeing compile options buffer.\n");
-    free_file_data(&compile_options_data);
-
-    // Destroy output buffers if they were allocated
-    if (output_buffers != NULL && api != NULL) {
-        printf("Destroying output buffers.\n");
-        for (size_t i = 0; i < num_outputs; ++i) {
-            if (output_buffers[i] != NULL) {
-                PJRT_Buffer_Destroy_Args destroy_buf_args = {0};
-                destroy_buf_args.struct_size = PJRT_Buffer_Destroy_Args_STRUCT_SIZE;
-                destroy_buf_args.extension_start = NULL;
-                destroy_buf_args.buffer = output_buffers[i];
-                PJRT_Error* destroy_buf_err = api->PJRT_Buffer_Destroy(&destroy_buf_args);
-                // Handle error, but continue cleanup
-                handle_error(destroy_buf_err, api, "PJRT_Buffer_Destroy (output)");
-            }
-        }
-        free(output_buffers); // Free the array holding the buffer pointers
-    }
-     // Destroy input buffers
-     if (input_buffers != NULL && api != NULL) {
-         printf("Destroying input buffers.\n");
-         for (size_t i = 0; i < num_inputs; ++i) { // Use the actual number of inputs created
-             if (input_buffers[i] != NULL) {
-                 PJRT_Buffer_Destroy_Args destroy_buf_args = {0};
-                 destroy_buf_args.struct_size = PJRT_Buffer_Destroy_Args_STRUCT_SIZE;
-                 destroy_buf_args.extension_start = NULL;
-                 destroy_buf_args.buffer = input_buffers[i];
-                 PJRT_Error* destroy_buf_err = api->PJRT_Buffer_Destroy(&destroy_buf_args);
-                 // Handle error, but continue cleanup
-                 handle_error(destroy_buf_err, api, "PJRT_Buffer_Destroy (input)");
-             }
-         }
-         free(input_buffers); // Free the array holding the buffer pointers
-     }
-
-    // Destroy loaded executable if it exists
-    if (loaded_executable != NULL && api != NULL) { // Use correct variable name
-        printf("Destroying loaded executable.\n");
-        PJRT_LoadedExecutable_Destroy_Args destroy_exec_args = {0}; // Match variable type
-        // Use the defined struct size macro
-        destroy_exec_args.struct_size = PJRT_LoadedExecutable_Destroy_Args_STRUCT_SIZE;
-        destroy_exec_args.extension_start = NULL;
-        destroy_exec_args.executable = loaded_executable; // Use correct variable
-        PJRT_Error* destroy_exec_err = api->PJRT_LoadedExecutable_Destroy(&destroy_exec_args); // Match variable type
-        handle_error(destroy_exec_err, api, "PJRT_LoadedExecutable_Destroy"); // Report error but continue cleanup
-    }
-
-    // Destroy client if it exists
-    if (client != NULL && api != NULL) {
-        printf("Destroying client.\n");
-        PJRT_Client_Destroy_Args destroy_client_args = {0};
-        destroy_client_args.struct_size = PJRT_Client_Destroy_Args_STRUCT_SIZE;
-        destroy_client_args.extension_start = NULL;
-        destroy_client_args.client = client;
-        PJRT_Error* destroy_client_err = api->PJRT_Client_Destroy(&destroy_client_args);
-        handle_error(destroy_client_err, api, "PJRT_Client_Destroy"); // Report error but continue cleanup
-    }
-
-    // Close plugin handle
-    if (handle != NULL) {
-        printf("Closing plugin handle.\n");
-        close_plugin(handle, plugin_path, NULL); // Use the correct variable name
-    }
-
-    return rc; // Return 0 for success, 1 for failure
-} // Closing brace for run_hlo_test
-
-int main(int argc, const char **argv)
-{
-    // Call the refactored function
-    int rc = run_hlo_test();
-
-    // Keep original main content if any, or just return rc
-    (void)argc; // Suppress unused parameter warning
-    (void)argv; // Suppress unused parameter warning
-    if (rc == 0) {
-        printf("hlo_test completed successfully.\n");
-    } else {
-        fprintf(stderr, "hlo_test failed.\n");
-    }
-    return rc;
-} // Closing brace for main
-
-
-// --- New function to execute the HLO program ---
-// Simplified version focusing on single device, single output list for now.
-// Assumes caller manages input/output buffer creation/destruction.
-static int execute_hlo_program(const PJRT_Api* api, PJRT_Client* client,
-                               PJRT_LoadedExecutable* executable,
+// --- Function to execute the HLO program ---
+// Removed client parameter as it's not used here
+static int execute_hlo_program(const PJRT_Api* api, PJRT_LoadedExecutable* executable,
                                PJRT_Buffer** input_buffers, size_t num_inputs,
                                PJRT_Buffer*** output_buffers_ptr, size_t* num_outputs_ptr) {
-    (void)client; // Mark client as unused for now
     printf("Preparing arguments for PJRT_LoadedExecutable_Execute...\n");
 
     // --- 1. Prepare Execute Options ---
@@ -760,4 +400,372 @@ static int execute_hlo_program(const PJRT_Api* api, PJRT_Client* client,
     *num_outputs_ptr = num_outputs_per_device;
 
     return 0; // Success
+}
+
+
+// --- Function to run a specific computation test case ---
+static int run_computation_test(const PJRT_Api* api, PJRT_Client* client, PJRT_Device* device,
+                                const TestCase* test_case) {
+    printf("\n--- Running Test Case: %s ---\n", test_case->name);
+    int rc = 1; // Default to failure
+    struct file_data hlo_data = {NULL, 0};
+    struct file_data compile_options_data = {NULL, 0};
+    PJRT_LoadedExecutable* loaded_executable = NULL;
+    PJRT_Buffer** input_buffers = NULL;
+    PJRT_Buffer** output_buffers = NULL;
+    size_t num_outputs = 0;
+
+    // --- Read Files ---
+    if (read_file_to_buffer(test_case->hlo_path, &hlo_data) != 0) {
+        fprintf(stderr, "Failed to read HLO program file: %s\n", test_case->hlo_path);
+        goto cleanup_test;
+    }
+    printf("Read HLO program '%s' (%zu bytes).\n", test_case->hlo_path, hlo_data.size);
+
+    if (read_file_to_buffer(test_case->compile_options_path, &compile_options_data) != 0) {
+        fprintf(stderr, "Failed to read compile options file: %s\n", test_case->compile_options_path);
+        goto cleanup_test;
+    }
+    printf("Read compile options proto '%s' (%zu bytes).\n", test_case->compile_options_path, compile_options_data.size);
+
+    // --- Create Input Buffers ---
+    input_buffers = (PJRT_Buffer**)malloc(test_case->num_inputs * sizeof(PJRT_Buffer*));
+    if (input_buffers == NULL) {
+        fprintf(stderr, "Failed to allocate memory for input buffer array.\n");
+        goto cleanup_test;
+    }
+    for(size_t i=0; i<test_case->num_inputs; ++i) input_buffers[i] = NULL; // Initialize
+
+    for (size_t i = 0; i < test_case->num_inputs; ++i) {
+        char context[50];
+        snprintf(context, sizeof(context), "Input %zu", i);
+        input_buffers[i] = create_buffer_from_host(api, client, device,
+                                                   test_case->input_data[i],
+                                                   test_case->input_types[i],
+                                                   test_case->input_dims[i],
+                                                   test_case->input_num_dims[i],
+                                                   context);
+        if (input_buffers[i] == NULL) goto cleanup_test;
+
+        // Print input buffer
+        printf("--- %s Data ---\n", context);
+        // Assuming F32 for now, might need type switching later
+        if (test_case->input_types[i] == PJRT_Buffer_Type_F32) {
+             print_float_buffer((float*)test_case->input_data[i], test_case->input_dims[i], test_case->input_num_dims[i]);
+        } else {
+             printf("  (Printing not implemented for this type)\n");
+        }
+        printf("-------------------\n");
+    }
+
+
+    // --- Compile HLO program ---
+    {
+        PJRT_Program program = {0};
+        program.struct_size = PJRT_Program_STRUCT_SIZE;
+        program.extension_start = NULL;
+        program.format = "hlo"; // Assuming HLO format
+        program.format_size = strlen(program.format);
+        program.code = hlo_data.data;
+        program.code_size = hlo_data.size;
+
+        PJRT_Client_Compile_Args compile_args = {0};
+        compile_args.struct_size = PJRT_Client_Compile_Args_STRUCT_SIZE;
+        compile_args.extension_start = NULL;
+        compile_args.client = client;
+        compile_args.program = &program;
+        compile_args.compile_options = compile_options_data.data;
+        compile_args.compile_options_size = compile_options_data.size;
+
+        PJRT_Error* error = api->PJRT_Client_Compile(&compile_args);
+        if (handle_error(error, api, "PJRT_Client_Compile")) {
+            goto cleanup_test;
+        }
+        loaded_executable = compile_args.executable;
+        printf("PJRT_Client_Compile successful.\n");
+    }
+
+    // --- Execute the program ---
+    if (loaded_executable != NULL) {
+         printf("Executing the compiled program...\n");
+
+         if (execute_hlo_program(api, loaded_executable,
+                                 input_buffers, test_case->num_inputs,
+                                 &output_buffers, &num_outputs) != 0) {
+             fprintf(stderr, "Failed to execute HLO program.\n");
+             goto cleanup_test;
+         }
+         printf("Execution successful. Received %zu output buffer(s).\n", num_outputs);
+
+         // --- Process Output Buffers ---
+         if (num_outputs > 0 && output_buffers != NULL && output_buffers[0] != NULL) {
+             printf("Processing output buffer 0...\n");
+             PJRT_Buffer* out_buf = output_buffers[0];
+
+             PJRT_Buffer_Dimensions_Args dim_args = {0};
+             dim_args.struct_size = PJRT_Buffer_Dimensions_Args_STRUCT_SIZE;
+             dim_args.buffer = out_buf;
+             PJRT_Error* dim_err = api->PJRT_Buffer_Dimensions(&dim_args);
+             if (handle_error(dim_err, api, "PJRT_Buffer_Dimensions (output)")) {
+                 // Error getting dimensions, cannot proceed with copy/print
+             } else {
+                 printf("Output buffer dimensions: %zu\n", dim_args.num_dims);
+                 // Calculate size based on dimensions and type (assuming F32 for now)
+                 size_t total_elements = 1;
+                 for(size_t i=0; i<dim_args.num_dims; ++i) total_elements *= dim_args.dims[i];
+                 // TODO: Get buffer type instead of assuming F32
+                 size_t expected_byte_size = total_elements * sizeof(float);
+
+                 float* host_output_data = (float*)malloc(expected_byte_size);
+                 if (host_output_data == NULL) {
+                     fprintf(stderr, "Failed to allocate host memory for output buffer.\n");
+                 } else {
+                     PJRT_Buffer_ToHostBuffer_Args to_host_args = {0};
+                     to_host_args.struct_size = PJRT_Buffer_ToHostBuffer_Args_STRUCT_SIZE;
+                     to_host_args.src = out_buf;
+                     to_host_args.dst = host_output_data;
+                     to_host_args.dst_size = expected_byte_size;
+
+                     PJRT_Error* to_host_error = api->PJRT_Buffer_ToHostBuffer(&to_host_args);
+
+                     if (handle_error(to_host_error, api, "PJRT_Buffer_ToHostBuffer")) {
+                         fprintf(stderr, "Failed to copy output buffer to host.\n");
+                     } else {
+                         printf("Output buffer copied to host successfully.\n");
+                         // Assuming F32 for printing
+                         print_float_buffer(host_output_data, dim_args.dims, dim_args.num_dims);
+                     }
+                     free(host_output_data);
+                 }
+             }
+         } else if (num_outputs > 0) {
+              fprintf(stderr, "Output buffer list exists, but buffer 0 is NULL.\n");
+         } else {
+              printf("No output buffers to process.\n");
+         }
+         // --- End of processing output buffers ---
+
+    } else {
+         fprintf(stderr, "Executable is NULL, cannot execute.\n");
+         goto cleanup_test;
+    }
+    // --- End of execution ---
+
+    rc = 0; // Mark test as success
+
+cleanup_test:
+    printf("Cleaning up resources for test case: %s\n", test_case->name);
+    // Destroy output buffers
+    if (output_buffers != NULL && api != NULL) {
+        printf("Destroying output buffers.\n");
+        for (size_t i = 0; i < num_outputs; ++i) {
+            if (output_buffers[i] != NULL) {
+                PJRT_Buffer_Destroy_Args destroy_buf_args = {0};
+                destroy_buf_args.struct_size = PJRT_Buffer_Destroy_Args_STRUCT_SIZE;
+                destroy_buf_args.buffer = output_buffers[i];
+                PJRT_Error* destroy_buf_err = api->PJRT_Buffer_Destroy(&destroy_buf_args);
+                handle_error(destroy_buf_err, api, "PJRT_Buffer_Destroy (output)");
+            }
+        }
+        free(output_buffers);
+    }
+    // Destroy input buffers
+     if (input_buffers != NULL && api != NULL) {
+         printf("Destroying input buffers.\n");
+         for (size_t i = 0; i < test_case->num_inputs; ++i) {
+             if (input_buffers[i] != NULL) {
+                 PJRT_Buffer_Destroy_Args destroy_buf_args = {0};
+                 destroy_buf_args.struct_size = PJRT_Buffer_Destroy_Args_STRUCT_SIZE;
+                 destroy_buf_args.buffer = input_buffers[i];
+                 PJRT_Error* destroy_buf_err = api->PJRT_Buffer_Destroy(&destroy_buf_args);
+                 handle_error(destroy_buf_err, api, "PJRT_Buffer_Destroy (input)");
+             }
+         }
+         free(input_buffers);
+     }
+    // Destroy loaded executable
+    if (loaded_executable != NULL && api != NULL) {
+        printf("Destroying loaded executable.\n");
+        PJRT_LoadedExecutable_Destroy_Args destroy_exec_args = {0};
+        destroy_exec_args.struct_size = PJRT_LoadedExecutable_Destroy_Args_STRUCT_SIZE;
+        destroy_exec_args.executable = loaded_executable;
+        PJRT_Error* destroy_exec_err = api->PJRT_LoadedExecutable_Destroy(&destroy_exec_args);
+        handle_error(destroy_exec_err, api, "PJRT_LoadedExecutable_Destroy");
+    }
+    // Free file buffers
+    free_file_data(&hlo_data);
+    free_file_data(&compile_options_data);
+
+    printf("--- Finished Test Case: %s (Result: %s) ---\n", test_case->name, rc == 0 ? "SUCCESS" : "FAILURE");
+    return rc;
+}
+
+
+// --- Main Function ---
+int main(int argc, const char **argv)
+{
+    (void)argc; // Suppress unused parameter warning
+    (void)argv; // Suppress unused parameter warning
+
+    static const char plugin_path[] = "./pjrt_c_api_cpu_plugin.so";
+    pjrt_init init_fn;
+    const PJRT_Api* api = NULL;
+    void *handle = NULL;
+    PJRT_Client* client = NULL;
+    PJRT_Device* target_device = NULL;
+    int overall_rc = 0; // Track overall success/failure
+
+    // --- Plugin Loading and Client Creation ---
+    handle = dlopen(plugin_path, RTLD_LAZY);
+    if (!handle) {
+        fprintf(stderr, "Error loading plugin '%s': %s\n", plugin_path, dlerror());
+        return 1;
+    }
+
+    init_fn = (pjrt_init)dlsym(handle, "GetPjrtApi");
+    if (!init_fn) {
+        fprintf(stderr, "Error finding symbol 'GetPjrtApi' in %s\n", plugin_path);
+        close_plugin(handle, plugin_path, NULL);
+        return 1;
+    }
+    api = init_fn();
+    if (api == NULL) {
+        fprintf(stderr, "Error: GetPjrtApi returned NULL\n");
+        close_plugin(handle, plugin_path, NULL);
+        return 1;
+    }
+    fprintf(stderr, "Loaded PJRT Plugin: %s\n", plugin_path);
+    fprintf(stderr, "Reported PJRT API Version: %d.%d\n", api->pjrt_api_version.major_version,
+            api->pjrt_api_version.minor_version);
+
+    if (api->struct_size < PJRT_Api_STRUCT_SIZE) {
+         fprintf(stderr, "Error: Loaded PJRT_Api struct size (%zu) is smaller than expected (%d).\n",
+                 api->struct_size, PJRT_Api_STRUCT_SIZE);
+         close_plugin(handle, plugin_path, NULL);
+         return 1;
+    }
+
+    {
+        PJRT_Plugin_Initialize_Args args = {0};
+        args.struct_size = PJRT_Plugin_Initialize_Args_STRUCT_SIZE;
+        PJRT_Error* error = api->PJRT_Plugin_Initialize(&args);
+        if (handle_error(error, api, "PJRT_Plugin_Initialize")) {
+            close_plugin(handle, plugin_path, NULL);
+            return 1;
+        }
+       printf("PJRT Plugin Initialized successfully.\n");
+    }
+
+    print_plugin_attributes(api);
+
+    {
+        PJRT_Client_Create_Args create_args = {0};
+        create_args.struct_size = PJRT_Client_Create_Args_STRUCT_SIZE;
+        PJRT_Error* error = api->PJRT_Client_Create(&create_args);
+         if (handle_error(error, api, "PJRT_Client_Create")) {
+            close_plugin(handle, plugin_path, NULL);
+            return 1;
+        }
+        client = create_args.client;
+        printf("PJRT Client created successfully.\n");
+    }
+
+    // --- Get Target Device ---
+    {
+        PJRT_Client_AddressableDevices_Args devices_args = {0};
+        devices_args.struct_size = PJRT_Client_AddressableDevices_Args_STRUCT_SIZE;
+        devices_args.client = client;
+        PJRT_Error* devices_error = api->PJRT_Client_AddressableDevices(&devices_args);
+        if (handle_error(devices_error, api, "PJRT_Client_AddressableDevices")) {
+             if (client != NULL) {
+                PJRT_Client_Destroy_Args destroy_args = {PJRT_Client_Destroy_Args_STRUCT_SIZE, NULL, client};
+                handle_error(api->PJRT_Client_Destroy(&destroy_args), api, "PJRT_Client_Destroy (error path)");
+             }
+             close_plugin(handle, plugin_path, NULL);
+             return 1;
+        }
+        if (devices_args.num_addressable_devices == 0) {
+            fprintf(stderr, "Error: No addressable devices found.\n");
+             if (client != NULL) {
+                PJRT_Client_Destroy_Args destroy_args = {PJRT_Client_Destroy_Args_STRUCT_SIZE, NULL, client};
+                handle_error(api->PJRT_Client_Destroy(&destroy_args), api, "PJRT_Client_Destroy (error path)");
+             }
+             close_plugin(handle, plugin_path, NULL);
+            return 1;
+        }
+        target_device = devices_args.addressable_devices[0]; // Use the first device
+        printf("Using device 0 for execution.\n");
+    }
+
+
+    // --- Define Test Cases ---
+    // Test Case 1: Add 3x2
+    float add_input_data_1[3][2] = {{1.0f, 2.0f}, {3.0f, 4.0f}, {5.0f, 6.0f}};
+    float add_input_data_2[3][2] = {{10.0f, 20.0f}, {30.0f, 40.0f}, {50.0f, 60.0f}};
+    void* add_inputs[] = {add_input_data_1, add_input_data_2};
+    int64_t add_dims[2] = {3, 2};
+    int64_t* add_input_dims[] = {add_dims, add_dims};
+    size_t add_num_dims[] = {2, 2};
+    PJRT_Buffer_Type add_types[] = {PJRT_Buffer_Type_F32, PJRT_Buffer_Type_F32};
+    TestCase add_test = {
+        .name = "Add 3x2",
+        .hlo_path = "./add.3x2.xla.pb",
+        .compile_options_path = "./compile_options.0.pb", // Assuming same options for now
+        .num_inputs = 2,
+        .input_data = add_inputs,
+        .input_dims = add_input_dims,
+        .input_num_dims = add_num_dims,
+        .input_types = add_types
+    };
+
+    // Test Case 2: Identity 2x2
+    float identity_input_data[2][2] = {{10.0f, -20.0f}, {35.5f, 0.0f}};
+    void* identity_inputs[] = {identity_input_data};
+    int64_t identity_dims[2] = {2, 2};
+    int64_t* identity_input_dims[] = {identity_dims};
+    size_t identity_num_dims[] = {2};
+    PJRT_Buffer_Type identity_types[] = {PJRT_Buffer_Type_F32};
+     TestCase identity_test = {
+        .name = "Identity 2x2",
+        .hlo_path = "./Identity.2x2.xla.pb",
+        .compile_options_path = "./compile_options.0.pb", // Assuming same options for now
+        .num_inputs = 1,
+        .input_data = identity_inputs,
+        .input_dims = identity_input_dims,
+        .input_num_dims = identity_num_dims,
+        .input_types = identity_types
+    };
+
+    TestCase* all_tests[] = {&add_test, &identity_test};
+    size_t num_tests = sizeof(all_tests) / sizeof(all_tests[0]);
+
+    // --- Run Tests ---
+    for (size_t i = 0; i < num_tests; ++i) {
+        int test_rc = run_computation_test(api, client, target_device, all_tests[i]);
+        if (test_rc != 0) {
+            overall_rc = 1; // Mark overall failure if any test fails
+        }
+    }
+
+    // --- Cleanup ---
+    if (client != NULL && api != NULL) {
+        printf("Destroying client.\n");
+        PJRT_Client_Destroy_Args destroy_client_args = {0};
+        destroy_client_args.struct_size = PJRT_Client_Destroy_Args_STRUCT_SIZE;
+        destroy_client_args.client = client;
+        PJRT_Error* destroy_client_err = api->PJRT_Client_Destroy(&destroy_client_args);
+        handle_error(destroy_client_err, api, "PJRT_Client_Destroy");
+    }
+
+    if (handle != NULL) {
+        printf("Closing plugin handle.\n");
+        close_plugin(handle, plugin_path, NULL);
+    }
+
+    if (overall_rc == 0) {
+        printf("\nAll hlo_tests completed successfully.\n");
+    } else {
+        fprintf(stderr, "\nOne or more hlo_tests failed.\n");
+    }
+    return overall_rc;
 }
