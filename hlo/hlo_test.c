@@ -304,13 +304,10 @@ static int run_hlo_test(void)
 
             // Example: Get serialized executable size
             // Using PJRT_Executable_Serialize function/args and the correct size member.
-            PJRT_Executable_Serialize_Args serialize_args = {0};
-            // Use the defined struct size macro
-            serialize_args.struct_size = PJRT_Executable_Serialize_Args_STRUCT_SIZE;
-            serialize_args.extension_start = NULL;
 
             // Get PJRT_Executable* from PJRT_LoadedExecutable*
             PJRT_LoadedExecutable_GetExecutable_Args get_exec_args = {0};
+            // Use the defined struct size macro
             get_exec_args.struct_size = PJRT_LoadedExecutable_GetExecutable_Args_STRUCT_SIZE;
             get_exec_args.extension_start = NULL;
             get_exec_args.loaded_executable = loaded_executable;
@@ -323,6 +320,12 @@ static int run_hlo_test(void)
                 // Continue cleanup even if this fails
             } else {
                 executable_from_loaded = get_exec_args.executable; // Get the obtained executable
+
+                // Declare and initialize serialize_args here, closer to its use
+                PJRT_Executable_Serialize_Args serialize_args = {0};
+                // Use the defined struct size macro
+                serialize_args.struct_size = PJRT_Executable_Serialize_Args_STRUCT_SIZE;
+                serialize_args.extension_start = NULL;
 
                 // Pass the obtained PJRT_Executable* to the serialize function
                 serialize_args.executable = executable_from_loaded;
@@ -369,8 +372,8 @@ cleanup:
     if (loaded_executable != NULL && api != NULL) { // Use correct variable name
         printf("Destroying loaded executable.\n");
         PJRT_LoadedExecutable_Destroy_Args destroy_exec_args = {0}; // Match variable type
-        // TODO: Ensure PJRT_LoadedExecutable_Destroy_Args_STRUCT_SIZE is defined in pjrt_c_api.h
-        destroy_exec_args.struct_size = sizeof(PJRT_LoadedExecutable_Destroy_Args); // Placeholder if macro undefined
+        // Use the defined struct size macro
+        destroy_exec_args.struct_size = PJRT_LoadedExecutable_Destroy_Args_STRUCT_SIZE;
         destroy_exec_args.extension_start = NULL;
         destroy_exec_args.executable = loaded_executable; // Use correct variable
         PJRT_Error* destroy_exec_err = api->PJRT_LoadedExecutable_Destroy(&destroy_exec_args); // Match variable type
