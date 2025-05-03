@@ -190,6 +190,7 @@ static int run_hlo_test(void)
     PJRT_Client* client = NULL;
     PJRT_LoadedExecutable* loaded_executable = NULL; // Correct type based on definitive API struct
     struct file_data hlo_data = {NULL, 0};
+    struct file_data compile_options_data = {NULL, 0}; // Buffer for compile options proto
     int rc = 1; // Default to failure
 
     handle = dlopen(plugin_path, RTLD_LAZY);
@@ -255,32 +256,21 @@ static int run_hlo_test(void)
         client = create_args.client; // Get the created client
         printf("PJRT Client created successfully.\n");
     }
-// Get default device assignment (added step)
-    {
-        PJRT_Client_DefaultDeviceAssignment_Args assign_args = {0};
-        assign_args.struct_size = PJRT_Client_DefaultDeviceAssignment_Args_STRUCT_SIZE;
-        assign_args.extension_start = NULL;
-        assign_args.client = client;
-        assign_args.num_replicas = 1; // Explicitly request for 1 replica
-        assign_args.num_partitions = 1; // Explicitly request for 1 partition
-
-        PJRT_Error* error = api->PJRT_Client_DefaultDeviceAssignment(&assign_args);
-        if (handle_error(error, api, "PJRT_Client_DefaultDeviceAssignment")) {
-             // Don't necessarily fail the whole test if this fails, maybe compile still works?
-             fprintf(stderr, "Warning: Failed to get default device assignment.\n");
-        } else {
-             printf("Obtained default device assignment (replicas=1, partitions=1).\n");
-             // We don't actually use assign_args.default_assignment here,
-             // but perhaps calling the function influences internal state.
-        }
-    }
-
     // Read HLO program file
     if (read_file_to_buffer(hlo_program_path, &hlo_data) != 0) {
         fprintf(stderr, "Failed to read HLO program file: %s\n", hlo_program_path);
         goto cleanup;
     }
     printf("Read HLO program '%s' (%zu bytes).\n", hlo_program_path, hlo_data.size);
+
+    // Read Compile Options Proto file
+    static const char compile_options_path[] = "./compile_options.0.pb";
+    if (read_file_to_buffer(compile_options_path, &compile_options_data) != 0) {
+        fprintf(stderr, "Failed to read compile options file: %s\n", compile_options_path);
+        // Treat as fatal as it likely contains required info
+        goto cleanup;
+    }
+    printf("Read compile options proto '%s' (%zu bytes).\n", compile_options_path, compile_options_data.size);
 
 
     // Compile HLO program
@@ -292,18 +282,14 @@ static int run_hlo_test(void)
         program.format_size = strlen(program.format);
         program.code = hlo_data.data;
         program.code_size = hlo_data.size;
-        // PJRT_Program struct does not have options members
-
-
-        // PJRT_CompileOptions is not a separate struct in the API used this way.
-        // Options are passed directly as PJRT_NamedValue array.
-        // For default options, pass NULL and 0.
 
         PJRT_Client_Compile_Args compile_args = {0};
         compile_args.struct_size = PJRT_Client_Compile_Args_STRUCT_SIZE;
         compile_args.extension_start = NULL;
         compile_args.client = client;
         compile_args.program = &program;
+        compile_args.compile_options = compile_options_data.data; // Pass buffer data
+        compile_args.compile_options_size = compile_options_data.size; // Pass buffer size
 
         PJRT_Error* error = api->PJRT_Client_Compile(&compile_args);
         if (handle_error(error, api, "PJRT_Client_Compile")) {
@@ -317,9 +303,11 @@ static int run_hlo_test(void)
     rc = 0; // Mark as success
 
 cleanup:
-    // Free file buffer regardless of success/failure after compilation attempt
+    // Free file buffers regardless of success/failure
     printf("Freeing HLO program buffer.\n");
     free_file_data(&hlo_data);
+    printf("Freeing compile options buffer.\n");
+    free_file_data(&compile_options_data);
 
     // Destroy loaded executable if it exists
     if (loaded_executable != NULL && api != NULL) {
