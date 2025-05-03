@@ -188,7 +188,7 @@ static int run_hlo_test(void)
     const PJRT_Api* api = NULL;
     void *handle = NULL;
     PJRT_Client* client = NULL;
-    PJRT_LoadedExecutable* loaded_executable = NULL; // Correct type based on definitive API struct
+    PJRT_LoadedExecutable* loaded_executable = NULL; // Revert to original type based on compile warning
     struct file_data hlo_data = {NULL, 0};
     struct file_data compile_options_data = {NULL, 0}; // Buffer for compile options proto
     int rc = 1; // Default to failure
@@ -295,11 +295,67 @@ static int run_hlo_test(void)
         if (handle_error(error, api, "PJRT_Client_Compile")) {
             goto cleanup; // Error during compilation
         }
-        loaded_executable = compile_args.executable; // Assign to correct variable type from correct member
+        loaded_executable = compile_args.executable; // Assign to correct variable type (PJRT_LoadedExecutable*)
         printf("PJRT_Client_Compile successful.\n");
-    }
 
-    // If we reach here, compilation was successful (or error handled without exit)
+        // --- Get and print executable properties ---
+        if (loaded_executable != NULL) { // Check the correct variable
+            printf("Attempting to get executable properties...\n");
+
+            // Example: Get serialized executable size
+            // Using PJRT_Executable_Serialize function/args and the correct size member.
+            PJRT_Executable_Serialize_Args serialize_args = {0};
+            // Use the defined struct size macro
+            serialize_args.struct_size = PJRT_Executable_Serialize_Args_STRUCT_SIZE;
+            serialize_args.extension_start = NULL;
+
+            // Get PJRT_Executable* from PJRT_LoadedExecutable*
+            PJRT_LoadedExecutable_GetExecutable_Args get_exec_args = {0};
+            get_exec_args.struct_size = PJRT_LoadedExecutable_GetExecutable_Args_STRUCT_SIZE;
+            get_exec_args.extension_start = NULL;
+            get_exec_args.loaded_executable = loaded_executable;
+            PJRT_Executable* executable_from_loaded = NULL;
+            get_exec_args.executable = executable_from_loaded; // Output parameter
+
+            PJRT_Error* get_exec_error = api->PJRT_LoadedExecutable_GetExecutable(&get_exec_args);
+            if (handle_error(get_exec_error, api, "PJRT_LoadedExecutable_GetExecutable")) {
+                fprintf(stderr, "Could not get PJRT_Executable from PJRT_LoadedExecutable.\n");
+                // Continue cleanup even if this fails
+            } else {
+                executable_from_loaded = get_exec_args.executable; // Get the obtained executable
+
+                // Pass the obtained PJRT_Executable* to the serialize function
+                serialize_args.executable = executable_from_loaded;
+
+                PJRT_Error* serialize_error = api->PJRT_Executable_Serialize(&serialize_args);
+                if (handle_error(serialize_error, api, "PJRT_Executable_Serialize")) {
+                    fprintf(stderr, "Could not serialize the executable to get its size.\n");
+                    // Continue cleanup even if serialization fails
+                } else {
+                    // Use the correct size member 'serialized_bytes_size' found in pjrt_c_api.h
+                    printf("Serialized executable size: %zu bytes\n", serialize_args.serialized_bytes_size);
+
+                    // IMPORTANT: Call the deleter provided by the Serialize function to free
+                    // the memory backing the serialized data, as specified in pjrt_c_api.h.
+                    if (serialize_args.serialized_executable_deleter != NULL &&
+                        serialize_args.serialized_executable != NULL) {
+                        printf("Calling serialized executable deleter.\n");
+                        serialize_args.serialized_executable_deleter(serialize_args.serialized_executable);
+                    } else {
+                         fprintf(stderr, "Warning: Serialized executable deleter or data is NULL.\n");
+                    }
+                }
+                // Note: The PJRT_Executable* obtained from PJRT_LoadedExecutable_GetExecutable
+                // is likely owned by the PJRT_LoadedExecutable and does not need separate destruction.
+                // If issues arise, consult the PJRT C API documentation for ownership rules.
+            }
+        } else {
+            fprintf(stderr, "Executable is NULL after compile, cannot get properties.\n");
+        }
+        // --- End of getting executable properties ---
+
+    } // Closing brace for the block after PJRT_Client_Compile
+
     rc = 0; // Mark as success
 
 cleanup:
@@ -310,13 +366,14 @@ cleanup:
     free_file_data(&compile_options_data);
 
     // Destroy loaded executable if it exists
-    if (loaded_executable != NULL && api != NULL) {
+    if (loaded_executable != NULL && api != NULL) { // Use correct variable name
         printf("Destroying loaded executable.\n");
-        PJRT_LoadedExecutable_Destroy_Args destroy_exec_args = {0}; // Use correct type
-        destroy_exec_args.struct_size = PJRT_LoadedExecutable_Destroy_Args_STRUCT_SIZE; // Use correct size macro
+        PJRT_LoadedExecutable_Destroy_Args destroy_exec_args = {0}; // Match variable type
+        // TODO: Ensure PJRT_LoadedExecutable_Destroy_Args_STRUCT_SIZE is defined in pjrt_c_api.h
+        destroy_exec_args.struct_size = sizeof(PJRT_LoadedExecutable_Destroy_Args); // Placeholder if macro undefined
         destroy_exec_args.extension_start = NULL;
-        destroy_exec_args.executable = loaded_executable; // Use correct member name and variable
-        PJRT_Error* destroy_exec_err = api->PJRT_LoadedExecutable_Destroy(&destroy_exec_args); // Use correct API function
+        destroy_exec_args.executable = loaded_executable; // Use correct variable
+        PJRT_Error* destroy_exec_err = api->PJRT_LoadedExecutable_Destroy(&destroy_exec_args); // Match variable type
         handle_error(destroy_exec_err, api, "PJRT_LoadedExecutable_Destroy"); // Report error but continue cleanup
     }
 
@@ -338,7 +395,7 @@ cleanup:
     }
 
     return rc; // Return 0 for success, 1 for failure
-}
+} // Closing brace for run_hlo_test
 
 int main(int argc, const char **argv)
 {
@@ -354,4 +411,4 @@ int main(int argc, const char **argv)
         fprintf(stderr, "hlo_test failed.\n");
     }
     return rc;
-}
+} // Closing brace for main
