@@ -15,9 +15,11 @@ struct file_data {
 
 
 // Helper function to handle PJRT errors
-static void handle_error(PJRT_Error* error, const PJRT_Api* api, const char* context) {
+// Returns 0 if error is NULL, 1 if an error occurred and was handled.
+// It now prints the error but does not exit, allowing the caller to manage cleanup.
+static int handle_error(PJRT_Error* error, const PJRT_Api* api, const char* context) {
   if (error == NULL) {
-    return;
+    return 0; // No error
   }
   fprintf(stderr, "PJRT Error in %s: ", context);
   PJRT_Error_Message_Args msg_args;
@@ -35,11 +37,11 @@ static void handle_error(PJRT_Error* error, const PJRT_Api* api, const char* con
   // Get and print the error code
   PJRT_Error_GetCode_Args code_args = {0};
   code_args.struct_size = PJRT_Error_GetCode_Args_STRUCT_SIZE;
-  code_args.extension_start = NULL; 
+  code_args.extension_start = NULL;
   code_args.error = error;
   PJRT_Error* code_err = api->PJRT_Error_GetCode(&code_args);
   if (code_err == NULL) {
-      fprintf(stderr, "PJRT Error Code: %d\n", code_args.code);  
+      fprintf(stderr, "PJRT Error Code: %d\n", code_args.code);
   } else {
       // Handle error while getting error code (though unlikely)
       PJRT_Error_Destroy_Args destroy_code_err_args;
@@ -48,7 +50,7 @@ static void handle_error(PJRT_Error* error, const PJRT_Api* api, const char* con
       destroy_code_err_args.error = code_err;
       api->PJRT_Error_Destroy(&destroy_code_err_args);
       fprintf(stderr, "Could not retrieve error code.\n");
-      
+
   }
 
   PJRT_Error_Destroy_Args destroy_args = {0};
@@ -56,7 +58,8 @@ static void handle_error(PJRT_Error* error, const PJRT_Api* api, const char* con
   destroy_args.extension_start = NULL;
   destroy_args.error = error;
   api->PJRT_Error_Destroy(&destroy_args);
-  exit(EXIT_FAILURE); 
+  // Don't exit here, let the caller decide based on the return value.
+  return 1; // Error occurred
 }
 
 // --- Function to get and print plugin attributes ---
@@ -65,7 +68,7 @@ static void print_plugin_attributes(const PJRT_Api* api) {
     attr_args.struct_size = PJRT_Plugin_Attributes_Args_STRUCT_SIZE; // Set struct_size
     attr_args.extension_start = NULL;
     PJRT_Error* attr_error = api->PJRT_Plugin_Attributes(&attr_args);
-    handle_error(attr_error, api, "PJRT_Plugin_Attributes"); // Use helper
+    if (handle_error(attr_error, api, "PJRT_Plugin_Attributes")) return; // Check error
 
     printf("PJRT Plugin Attributes (Count: %zu):\n", attr_args.num_attributes);
 
@@ -122,7 +125,7 @@ static int close_plugin(void* handle, const char* plugin, const char* message) {
         }
     }
 
-    return 1;
+    return 1; // Indicate failure for consistency, though it might have closed successfully
 }
 
 // Function to read a file into a buffer
@@ -144,7 +147,7 @@ static int read_file_to_buffer(const char* filename, struct file_data* file_data
     rewind(file);
 
     // Allocate buffer
-    file_data->data = malloc(file_size + 1); // +1 for null terminator
+    file_data->data = malloc(file_size); // No need for +1 for binary data
     if (file_data->data == NULL) {
         fprintf(stderr, "Error allocating memory for file '%s'\n", filename);
         fclose(file);
@@ -153,16 +156,18 @@ static int read_file_to_buffer(const char* filename, struct file_data* file_data
     file_data->size = file_size;
 
     // Read file content
-    ssize_t bytes_read = fread(file_data->data, 1, file_size, file);
+    size_t bytes_read = fread(file_data->data, 1, file_size, file); // Use size_t for fread return
     fclose(file);
 
-    if (bytes_read < 0 || bytes_read != (ssize_t)file_size) {
-        fprintf(stderr, "Error reading file '%s'\n", filename);
+    if (bytes_read != (size_t)file_size) { // Check if read matches expected size
+        fprintf(stderr, "Error reading file '%s' (read %zu bytes, expected %ld)\n", filename, bytes_read, file_size);
         free(file_data->data);
+        file_data->data = NULL; // Avoid double free
+        file_data->size = 0;
         return 1;
     }
 
-    return 0;
+    return 0; // Success
 }
 // Frees space that was allocated by read_file_to_buffer
 static void free_file_data(struct file_data* file_data) {
@@ -173,35 +178,45 @@ static void free_file_data(struct file_data* file_data) {
     }
 }
 
-static int load_plugin(void)
+// Renamed and expanded function
+static int run_hlo_test(void)
 {
-    static const char plugin[] = "./pjrt_c_api_cpu_plugin.so";
+    static const char plugin_path[] = "./pjrt_c_api_cpu_plugin.so";
+    static const char hlo_program_path[] = "./add.3x2.xla.pb"; // Use the provided path
+
     pjrt_init init_fn;
-    const PJRT_Api* api;
-    void *handle = dlopen(plugin, RTLD_LAZY);
+    const PJRT_Api* api = NULL;
+    void *handle = NULL;
+    PJRT_Client* client = NULL;
+    PJRT_LoadedExecutable* loaded_executable = NULL; // Correct type based on definitive API struct
+    struct file_data hlo_data = {NULL, 0};
+    int rc = 1; // Default to failure
+
+    handle = dlopen(plugin_path, RTLD_LAZY);
     if (!handle) {
-        fprintf(stderr, "Error loading plugin '%s': %s\n", plugin, dlerror());
-        return close_plugin(handle, plugin, NULL);
+        fprintf(stderr, "Error loading plugin '%s': %s\n", plugin_path, dlerror());
+        goto cleanup;
     }
 
     init_fn = (pjrt_init)dlsym(handle, "GetPjrtApi");
     if (!init_fn) {
-        return close_plugin(handle, plugin, "Error finding symbol 'GetPjrtApi'");
+        fprintf(stderr, "Error finding symbol 'GetPjrtApi' in %s\n", plugin_path);
+        goto cleanup;
     }
     api = init_fn();
     if (api == NULL) {
-        return close_plugin(handle, plugin, "Error: GetPjrtApi returned NULL");
+        fprintf(stderr, "Error: GetPjrtApi returned NULL\n");
+        goto cleanup;
     }
-    fprintf(stderr, "Loaded PJRT Plugin: %s\n", plugin);
+    fprintf(stderr, "Loaded PJRT Plugin: %s\n", plugin_path);
     fprintf(stderr, "Reported PJRT API Version: %d.%d\n", api->pjrt_api_version.major_version,
             api->pjrt_api_version.minor_version);
+
     // Basic API struct size check
     if (api->struct_size < PJRT_Api_STRUCT_SIZE) {
          fprintf(stderr, "Error: Loaded PJRT_Api struct size (%zu) is smaller than expected (%d).\n",
                  api->struct_size, PJRT_Api_STRUCT_SIZE);
-         // Optionally check major version compatibility here too
-         dlclose(handle);
-         return 1;
+         goto cleanup;
     }
 
 
@@ -211,23 +226,139 @@ static int load_plugin(void)
         args.struct_size = PJRT_Plugin_Initialize_Args_STRUCT_SIZE;
         args.extension_start = NULL;
         error = api->PJRT_Plugin_Initialize(&args);
-        // Use the helper function for error handling       
-       handle_error(error, api, "PJRT_Plugin_Initialize");
-       printf("PJRT Plugin Initialized successfully.\n"); // Use printf for standard output
+        if (handle_error(error, api, "PJRT_Plugin_Initialize")) {
+            goto cleanup;
+        }
+       printf("PJRT Plugin Initialized successfully.\n");
     }
 
-    // Call the dedicated function to print attributes
+    // Print attributes (optional, but kept from original)
     print_plugin_attributes(api);
 
-    // Future client creation, device handling etc. would go here
+    // Create Client
+    {
+        PJRT_Client_Create_Args create_args = {0};
+        create_args.struct_size = PJRT_Client_Create_Args_STRUCT_SIZE;
+        create_args.extension_start = NULL;
+        // create_options: Can be NULL or specify options like kv_store
+        create_args.create_options = NULL;
+        create_args.num_options = 0;
+        create_args.kv_get_callback = NULL;
+        create_args.kv_put_callback = NULL;
+        create_args.kv_get_user_arg = NULL;
+        create_args.kv_put_user_arg = NULL;
 
-    close_plugin(handle, plugin, NULL); // Close the handle after use
-    return 0;
+        PJRT_Error* error = api->PJRT_Client_Create(&create_args);
+         if (handle_error(error, api, "PJRT_Client_Create")) {
+            goto cleanup;
+        }
+        client = create_args.client; // Get the created client
+        printf("PJRT Client created successfully.\n");
+    }
+// Get default device assignment (added step)
+    {
+        PJRT_Client_DefaultDeviceAssignment_Args assign_args = {0};
+        assign_args.struct_size = PJRT_Client_DefaultDeviceAssignment_Args_STRUCT_SIZE;
+        assign_args.extension_start = NULL;
+        assign_args.client = client;
+        assign_args.num_replicas = 1; // Explicitly request for 1 replica
+        assign_args.num_partitions = 1; // Explicitly request for 1 partition
+
+        PJRT_Error* error = api->PJRT_Client_DefaultDeviceAssignment(&assign_args);
+        if (handle_error(error, api, "PJRT_Client_DefaultDeviceAssignment")) {
+             // Don't necessarily fail the whole test if this fails, maybe compile still works?
+             fprintf(stderr, "Warning: Failed to get default device assignment.\n");
+        } else {
+             printf("Obtained default device assignment (replicas=1, partitions=1).\n");
+             // We don't actually use assign_args.default_assignment here,
+             // but perhaps calling the function influences internal state.
+        }
+    }
+
+    // Read HLO program file
+    if (read_file_to_buffer(hlo_program_path, &hlo_data) != 0) {
+        fprintf(stderr, "Failed to read HLO program file: %s\n", hlo_program_path);
+        goto cleanup;
+    }
+    printf("Read HLO program '%s' (%zu bytes).\n", hlo_program_path, hlo_data.size);
+
+
+    // Compile HLO program
+    {
+        PJRT_Program program = {0};
+        program.struct_size = PJRT_Program_STRUCT_SIZE;
+        program.extension_start = NULL;
+        program.format = "hlo"; // Specify format if known, or let PJRT infer
+        program.format_size = strlen(program.format);
+        program.code = hlo_data.data;
+        program.code_size = hlo_data.size;
+        // PJRT_Program struct does not have options members
+
+
+        // PJRT_CompileOptions is not a separate struct in the API used this way.
+        // Options are passed directly as PJRT_NamedValue array.
+        // For default options, pass NULL and 0.
+
+        PJRT_Client_Compile_Args compile_args = {0};
+        compile_args.struct_size = PJRT_Client_Compile_Args_STRUCT_SIZE;
+        compile_args.extension_start = NULL;
+        compile_args.client = client;
+        compile_args.program = &program;
+        compile_args.compile_options = NULL; // Use correct field for serialized options
+        compile_args.compile_options_size = 0; // Use correct size field
+        // No num_options field exists
+
+        PJRT_Error* error = api->PJRT_Client_Compile(&compile_args);
+        if (handle_error(error, api, "PJRT_Client_Compile")) {
+            goto cleanup; // Error during compilation
+        }
+        loaded_executable = compile_args.executable; // Assign to correct variable type from correct member
+        printf("PJRT_Client_Compile successful.\n");
+    }
+
+    // If we reach here, compilation was successful (or error handled without exit)
+    rc = 0; // Mark as success
+
+cleanup:
+    // Free file buffer regardless of success/failure after compilation attempt
+    printf("Freeing HLO program buffer.\n");
+    free_file_data(&hlo_data);
+
+    // Destroy loaded executable if it exists
+    if (loaded_executable != NULL && api != NULL) {
+        printf("Destroying loaded executable.\n");
+        PJRT_LoadedExecutable_Destroy_Args destroy_exec_args = {0}; // Use correct type
+        destroy_exec_args.struct_size = PJRT_LoadedExecutable_Destroy_Args_STRUCT_SIZE; // Use correct size macro
+        destroy_exec_args.extension_start = NULL;
+        destroy_exec_args.executable = loaded_executable; // Use correct member name and variable
+        PJRT_Error* destroy_exec_err = api->PJRT_LoadedExecutable_Destroy(&destroy_exec_args); // Use correct API function
+        handle_error(destroy_exec_err, api, "PJRT_LoadedExecutable_Destroy"); // Report error but continue cleanup
+    }
+
+    // Destroy client if it exists
+    if (client != NULL && api != NULL) {
+        printf("Destroying client.\n");
+        PJRT_Client_Destroy_Args destroy_client_args = {0};
+        destroy_client_args.struct_size = PJRT_Client_Destroy_Args_STRUCT_SIZE;
+        destroy_client_args.extension_start = NULL;
+        destroy_client_args.client = client;
+        PJRT_Error* destroy_client_err = api->PJRT_Client_Destroy(&destroy_client_args);
+        handle_error(destroy_client_err, api, "PJRT_Client_Destroy"); // Report error but continue cleanup
+    }
+
+    // Close plugin handle
+    if (handle != NULL) {
+        printf("Closing plugin handle.\n");
+        close_plugin(handle, plugin_path, NULL); // Use the correct variable name
+    }
+
+    return rc; // Return 0 for success, 1 for failure
 }
 
 int main(int argc, const char **argv)
 {
-    int rc = load_plugin();
+    // Call the refactored function
+    int rc = run_hlo_test();
 
     // Keep original main content if any, or just return rc
     (void)argc; // Suppress unused parameter warning
