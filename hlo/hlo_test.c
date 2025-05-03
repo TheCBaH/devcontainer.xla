@@ -376,6 +376,13 @@ static int run_hlo_test(void)
                                                PJRT_Buffer_Type_F32, dims, num_dims, "Input 2");
     if (input_buffers[1] == NULL) goto cleanup;
 
+    // Print input buffers for verification
+    printf("--- Input Buffer 1 ---\n");
+    print_float_buffer((float*)input_data_1, dims[0], dims[1]);
+    printf("--- Input Buffer 2 ---\n");
+    print_float_buffer((float*)input_data_2, dims[0], dims[1]);
+    printf("----------------------\n");
+
 
     // Compile HLO program
     {
