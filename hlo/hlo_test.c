@@ -8,6 +8,12 @@
 
 typedef const PJRT_Api* (*pjrt_init)();
 
+struct file_data {
+    void* data;
+    size_t size;
+};
+
+
 // Helper function to handle PJRT errors
 static void handle_error(PJRT_Error* error, const PJRT_Api* api, const char* context) {
   if (error == NULL) {
@@ -117,6 +123,54 @@ static int close_plugin(void* handle, const char* plugin, const char* message) {
     }
 
     return 1;
+}
+
+// Function to read a file into a buffer
+static int read_file_to_buffer(const char* filename, struct file_data* file_data) {
+    FILE* file = fopen(filename, "rb");
+    if (file == NULL) {
+        fprintf(stderr, "Error opening file '%s'\n", filename);
+        return 1;
+    }
+
+    // Determine file size
+    fseek(file, 0, SEEK_END);
+    long file_size = ftell(file);
+    if (file_size < 0) {
+        fprintf(stderr, "Error getting file size for '%s'\n", filename);
+        fclose(file);
+        return 1;
+    }
+    rewind(file);
+
+    // Allocate buffer
+    file_data->data = malloc(file_size + 1); // +1 for null terminator
+    if (file_data->data == NULL) {
+        fprintf(stderr, "Error allocating memory for file '%s'\n", filename);
+        fclose(file);
+        return 1;
+    }
+    file_data->size = file_size;
+
+    // Read file content
+    ssize_t bytes_read = fread(file_data->data, 1, file_size, file);
+    fclose(file);
+
+    if (bytes_read < 0 || bytes_read != (ssize_t)file_size) {
+        fprintf(stderr, "Error reading file '%s'\n", filename);
+        free(file_data->data);
+        return 1;
+    }
+
+    return 0;
+}
+// Frees space that was allocated by read_file_to_buffer
+static void free_file_data(struct file_data* file_data) {
+    if (file_data->data != NULL) {
+        free(file_data->data);
+        file_data->data = NULL;
+        file_data->size = 0;
+    }
 }
 
 static int load_plugin(void)
