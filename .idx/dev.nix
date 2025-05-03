@@ -7,6 +7,8 @@
   # Use https://search.nixos.org/packages to find packages
   packages = [
     pkgs.bazel_7
+    pkgs.clang
+    pkgs.clang-tools
     pkgs.gcc
     pkgs.gdb
     pkgs.gnumake
@@ -20,6 +22,7 @@
     extensions = [
       "ms-vscode.cpptools"
       "vscodevim.vim"
+      "llvm-vs-code-extensions.vscode-clangd"
     ];
 
     # Enable previews
