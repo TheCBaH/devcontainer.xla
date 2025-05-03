@@ -22,7 +22,8 @@ TARGET.builder=//xla/hlo/builder:xla_builder
 #TARGET=@xla//xla/pjrt/c:pjrt_c_api_cpu_plugin.so @xla//xla/examples/axpy:stablehlo_compile_test
 TARGET=//xla/pjrt/c:pjrt_c_api_cpu_plugin.so //xla/examples/axpy:stablehlo_compile_test
 
-BAZEL_BUILD_OPTS=${BAZEL_OPTS} --define use_stablehlo=true --compilation_mode fastbuild --strip=always --copt -Os
+BAZEL_BUILD_OPTS=${BAZEL_OPTS} --define use_stablehlo=true\
+  $(if ${WITH_GDB} ,--compilation_mode dbg, --compilation_mode fastbuild --strip=always) --copt -Os
 # --subcommands  
 
 fetch:
@@ -41,7 +42,7 @@ build:
 	
 run:
 	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/examples/axpy:stablehlo_compile_test 
-	cp -pv xla/bazel-bin/xla/examples/axpy/stablehlo_compile_test.runfiles/xla/*.mlir.bc hlo/
+	cp -pv $(addprefix xla/bazel-bin/xla/examples/axpy/stablehlo_compile_test.runfiles/xla/, *.mlir.bc *.pb) hlo/
 	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/pjrt/c:pjrt_c_api_cpu_test
 	${BAZEL} run ${BAZEL_BUILD_OPTS} //xla/pjrt/cpu:cpu_client_test
 	cp -pv xla/bazel-bin/xla/pjrt/cpu/cpu_client_test.runfiles/xla/*.pb hlo/

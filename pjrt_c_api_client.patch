@@ -1,9 +1,9 @@
 diff --git a/xla/pjrt/pjrt_c_api_client.cc b/xla/pjrt/pjrt_c_api_client.cc
-index cf9e35a..ffdb7a4 100644
+index cf9e35a..af8afcc 100644
 --- a/xla/pjrt/pjrt_c_api_client.cc
 +++ b/xla/pjrt/pjrt_c_api_client.cc
-@@ -392,6 +392,21 @@ PjRtCApiClient::CompileAndLoad(const XlaComputation& computation,
-                                   module_str, format);
+@@ -350,6 +350,38 @@ absl::Span<PjRtMemorySpace* const> PjRtCApiClient::memory_spaces() const {
+   return addressable_memory_spaces_;
  }
  
 +static void write_hlo(const std::string& serialized, const char* name)
@@ -21,10 +21,35 @@ index cf9e35a..ffdb7a4 100644
 +  return;
 +}
 +
- absl::StatusOr<std::unique_ptr<PjRtLoadedExecutable>>
- PjRtCApiClient::CompileAndLoad(mlir::ModuleOp module, CompileOptions options) {
-   if (!pjrt_c_api()) llvm::report_fatal_error("pjrt_c_api is null");
-@@ -410,6 +425,7 @@ PjRtCApiClient::CompileAndLoad(mlir::ModuleOp module, CompileOptions options) {
++static void write_options(const std::string& serialized)
++{
++  static unsigned no = 0;
++  const std::string file_name = "compile_options." + std::to_string(no) + ".pb";
++  FILE* file = fopen(file_name.c_str(), "wb");
++  if (file == nullptr) {
++    return;
++  }
++  if (fwrite(serialized.data(), 1, serialized.size(), file) != serialized.size()) {
++  }
++  fprintf(stderr, "Written %u (%u) to file %s\n", no, (unsigned)serialized.size(), file_name.c_str());
++  fclose(file);
++  no++;
++  return;
++}
++
++
+ // Initializes `PJRT_Client_Compile_Args`, which will be used to call
+ // API PJRT_Client_Compile().
+ static absl::StatusOr<std::unique_ptr<PjRtLoadedExecutable>>
+@@ -365,6 +397,7 @@ InitializeArgsAndCompile(PjRtCApiClient* api_client, const PJRT_Api* c_api,
+   TF_ASSIGN_OR_RETURN(const CompileOptionsProto options_proto,
+                       options.ToProto());
+   std::string options_str = options_proto.SerializeAsString();
++  write_options(options_str);
+   args.compile_options = options_str.c_str();
+   args.compile_options_size = options_str.size();
+ 
+@@ -410,6 +443,7 @@ PjRtCApiClient::CompileAndLoad(mlir::ModuleOp module, CompileOptions options) {
    TF_ASSIGN_OR_RETURN(std::string serialized,
                        xla::Serialize(module, version_string));
    std::string format(pjrt::kMlirFormat);
