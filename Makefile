@@ -36,7 +36,7 @@ build:
 	rm -f hlo/pjrt_c_api_cpu_plugin.so
 	cp -pv xla/bazel-bin/xla/pjrt/c/pjrt_c_api_cpu_plugin.so.runfiles/xla/xla/pjrt/c/pjrt_c_api_cpu_plugin.so hlo/
 	chmod +w hlo/pjrt_c_api_cpu_plugin.so
-	strip hlo/pjrt_c_api_cpu_plugin.so
+	$(if ${WITH_GDB},,strip hlo/pjrt_c_api_cpu_plugin.so)
 	cp -pv xla/xla/pjrt/c/pjrt_c_api.h hlo/
 	
 run:

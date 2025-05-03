@@ -304,9 +304,6 @@ static int run_hlo_test(void)
         compile_args.extension_start = NULL;
         compile_args.client = client;
         compile_args.program = &program;
-        compile_args.compile_options = NULL; // Use correct field for serialized options
-        compile_args.compile_options_size = 0; // Use correct size field
-        // No num_options field exists
 
         PJRT_Error* error = api->PJRT_Client_Compile(&compile_args);
         if (handle_error(error, api, "PJRT_Client_Compile")) {
