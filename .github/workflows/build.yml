@@ -29,6 +29,10 @@ jobs:
         xla_commit=$(git -C xla log -n 1 --format=%h)
         echo "${{ hashFiles( 'xla/*.bzl', 'xla/WORKSPACE', 'xla/.bazel*', 'xla/*.bazelrc') }}" >> $GITHUB_OUTPUT
         echo "${{ hashFiles( 'Makefile' ) }}-$xla_commit" >> $GITHUB_OUTPUT
+    - name: test
+      run: |
+        echo '${{ steps.cache-id.outputs.* }}'
+        false
     - name: devcontainer
       uses: ./.github/workflows/actions/devcontainer
       id: devcontainer
