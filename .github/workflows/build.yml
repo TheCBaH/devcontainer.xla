@@ -76,18 +76,6 @@ jobs:
       with:
         name: hlo-artifacts
         path: hlo/
-    - name: Release File
-      if: github.ref_type == 'tag'
-      run: |
-        file=pjrt-cpu.tar.xz
-        (cd hlo;tar -ck --numeric-owner *)| xz -T0 -z > $file
-        ls -lh $file
-        tar -tvf $file
-    - name: Upload Release Artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: xla-release
-        path: pjrt-cpu.tar.xz
   release:
     runs-on: ubuntu-latest
     needs: [build]
@@ -97,7 +85,13 @@ jobs:
     steps:
     - uses: actions/download-artifact@v4
       with:
-        name: xla-release
+        name: hlo-artifacts
+    - name: Release File
+      run: |
+        file=pjrt-cpu.tar.xz
+        (cd hlo;tar -ck --numeric-owner *)| xz -T0 -z > $file
+        ls -lh $file
+        tar -tvf $file
     - name: upload release
       uses: softprops/action-gh-release@v2
       with:
