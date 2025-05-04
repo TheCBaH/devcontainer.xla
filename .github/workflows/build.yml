@@ -28,7 +28,7 @@ jobs:
         fi
         xla_commit=$(git -C xla log -n 1 --format=%h)
         echo "id=${{ hashFiles( 'xla/*.bzl', 'xla/WORKSPACE', 'xla/.bazel*', 'xla/*.bazelrc') }}" >> $GITHUB_OUTPUT
-        echo "sub=${{ hashFiles( 'Makefile' ) }}-$xla_commit" >> $GITHUB_OUTPUT
+        echo "sub=${{ hashFiles( 'Makefile', '.github/workflows/build.yml' ) }}-$xla_commit" >> $GITHUB_OUTPUT
     - name: test
       run: |
         echo '${{ steps.cache-id.outputs.* }}'
@@ -53,16 +53,15 @@ jobs:
       uses: actions/cache@v4
       with:
         path: .cache/bazel-repo
-        key: bazel-repo-${{ hashFiles( 'xla/*.bzl', 'xla/WORKSPACE', 'xla/.bazel*', 'xla/*.bazelrc') }}
+        key: bazel-repo-${{ steps.cache-id.outputs.id }}
     - name: Cache Bazel build
       id: bazel-cache
       uses: actions/cache@v4
       with:
         path: .cache/bazel-build
-        key: bazel-build-${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazel*', 'xla/*.bazelrc') }}-${{ github.run_id }}
+        key: bazel-build-${{ steps.cache-id.outputs.id }}-${{ steps.cache-id.outputs.sub}}
         restore-keys: |
-          bazel-build-${{ hashFiles('xla/*.bzl', 'xla/WORKSPACE',  'xla/.bazel*', 'xla/*.bazelrc') }}
-          bazel-build
+          bazel-build-${{ steps.cache-id.outputs.id }}
     - name: fetch
       run: |
         ${{ env.EXEC }} make fetch
