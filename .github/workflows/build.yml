@@ -16,6 +16,7 @@ jobs:
       with:
         submodules: true
     - name: cache
+      id: cache-id
       run: |
         set -eux
         if [ "$(stat --format %d /mnt)" != "$(stat --format %d .)" ]; then
@@ -25,6 +26,9 @@ jobs:
           mkdir .cache
           sudo mount --bind /mnt/.cache .cache
         fi
+        xla_commit=$(git -C xla log -n 1 --format=%h)
+        echo "${{ hashFiles( 'xla/*.bzl', 'xla/WORKSPACE', 'xla/.bazel*', 'xla/*.bazelrc') }}" >> $GITHUB_OUTPUT
+        echo "${{ hashFiles( 'Makefile' ) }}-$xla_commit" >> $GITHUB_OUTPUT
     - name: devcontainer
       uses: ./.github/workflows/actions/devcontainer
       id: devcontainer
