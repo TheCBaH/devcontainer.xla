@@ -29,12 +29,6 @@ jobs:
         xla_commit=$(git -C xla log -n 1 --format=%h)
         echo "id=${{ hashFiles( 'xla/*.bzl', 'xla/WORKSPACE', 'xla/.bazel*', 'xla/*.bazelrc') }}" >> $GITHUB_OUTPUT
         echo "sub=${{ hashFiles( 'Makefile', '.github/workflows/build.yml' ) }}-$xla_commit" >> $GITHUB_OUTPUT
-    - name: test
-      run: |
-        echo '${{ steps.cache-id.outputs.* }}'
-        echo '${{ steps.cache-id.outputs.id }}'
-        echo '${{ steps.cache-id.outputs.sub }}'
-        false
     - name: devcontainer
       uses: ./.github/workflows/actions/devcontainer
       id: devcontainer
