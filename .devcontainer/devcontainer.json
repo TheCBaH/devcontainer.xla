@@ -8,11 +8,13 @@
         "ghcr.io/devcontainers/features/common-utils:2": {
             "username": "vscode",
             "upgradePackages": "false"
+        },
+        "./features/apt-packages": {
+            "packages": "build-essential clang gdb lld python3 valgrind"
+        },
+        "./features/bazel": {
+            "version": "7.4.1"
         }
     },
-    "remoteUser": "vscode",
-    "postCreateCommand": {
-        "submodules": "git submodule update --recursive --init --depth=1"
-    },
-    "waitFor": "postCreateCommand"
+    "remoteUser": "vscode"
 }
