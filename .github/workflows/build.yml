@@ -15,6 +15,18 @@ jobs:
       uses: actions/checkout@v4
       with:
         submodules: true
+    - name: cache
+      run: |
+        set -eux
+        ${{ env.EXEC }} df -h
+        df -h
+        mkdir .cache
+        if [ "$(stat --format %d /mnt)" != "$(stat --format %d .)" ]; then
+          df -h /mnt
+          sudo mkdir /mnt/.cache
+          sudo chown ${USER} /mnt/.cache
+          sudo mount --bind /mnt/.cache .cache
+        fi
     - name: devcontainer
       uses: ./.github/workflows/actions/devcontainer
       id: devcontainer
@@ -24,19 +36,10 @@ jobs:
     - name: configure
       run: |
         ${{ env.EXEC }} make configure WITH_CLANG=1
-    - name: cache
+    - name: cache ID
       id: cache-id
       run: |
         set -eux
-        ${{ env.EXEC }} df -h
-        df -h
-        if [ "$(stat --format %d /mnt)" != "$(stat --format %d .)" ]; then
-          df -h /mnt
-          sudo mkdir /mnt/.cache
-          sudo chown ${USER} /mnt/.cache
-          mkdir .cache
-          sudo mount --bind /mnt/.cache .cache
-        fi
         xla_commit=$(git -C xla log -n 1 --format=%h)
         echo "id=${{ hashFiles( 'xla/*.bzl', 'xla/WORKSPACE', 'xla/.bazel*', 'xla/*.bazelrc') }}" >> $GITHUB_OUTPUT
         echo "id1=$xla_commit" >> $GITHUB_OUTPUT
