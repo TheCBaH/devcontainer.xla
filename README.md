@@ -1,8 +1,8 @@
-# Devcontainer for LLAMA.CPP
+# Devcontainer for OpenXLA
 
-[![XLA devcontainer](https://github.com/TheCBaH/devcontainer.xla/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/TheCBaH/devcontainer.xla/actions/workflows/build.yml)
+[![OpenXLA devcontainer](https://github.com/TheCBaH/devcontainer.xla/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/TheCBaH/devcontainer.xla/actions/workflows/build.yml)
 
-Devcontainer to create [XLA](https://github.com/openxla/xla) development environment.
+Devcontainer to create [OpenXLA](https://github.com/openxla/xla) development environment.
 
 ## Get started
 * [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=977209083)
