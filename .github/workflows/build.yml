@@ -23,6 +23,9 @@ jobs:
         mkdir .cache
         if [ "$(stat --format %d /mnt)" != "$(stat --format %d .)" ]; then
           df -h /mnt
+          ls -alh /mnt
+          sudo du -sh /mnt/*
+          sudo find /mnt -size +1M '!' -name swapfile -exec rm -vf {} ';'
           sudo mkdir /mnt/.cache
           sudo chown ${USER} /mnt/.cache
           sudo mount --bind /mnt/.cache .cache
