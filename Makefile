@@ -34,8 +34,8 @@ build:
 	${BAZEL} build ${BAZEL_BUILD_OPTS} ${TARGETS}
 
 PROTOBUF_ROOTS=\
- xla/pjrt/execute_options.proto\
- xla/pjrt/compile_options.proto\
+ xla/pjrt/proto/compile_options.proto\
+ xla/pjrt/proto/execute_options.proto\
  xla/xla.proto\
 
 PROTOBUF_FILES= ${PROTOBUF_ROOTS}\
@@ -71,7 +71,7 @@ run.protobuf:
  ${PROTOC} --proto_path=hlo -o/dev/null hlo/$f;) true
 	set -eux;$(foreach f, add.3x2 Identity.2x2,\
  ${PROTOC} --decode=xla.HloModuleProto --proto_path=hlo hlo/xla/xla.proto < hlo/${f}.xla.pb > hlo/${f}.xla.txt;) true
-	${PROTOC} --decode=xla.CompileOptionsProto --proto_path=hlo xla/pjrt/compile_options.proto < hlo/compile_options.0.pb > hlo/compile_options.0.txt
+	${PROTOC} --decode=xla.CompileOptionsProto --proto_path=hlo xla/pjrt/proto/compile_options.proto < hlo/compile_options.0.pb > hlo/compile_options.0.txt
 	set -eux;$(foreach f, add.3x2 Identity.2x2,\
  xla/bazel-bin/xla/hlo/translate/xla-translate --hlo-to-mlir-hlo hlo/${f}.xla.pb | xla/bazel-bin/xla/hlo/translate/xla-translate --mlir-hlo-to-hlo-text >hlo/${f}.txt;) true
 
