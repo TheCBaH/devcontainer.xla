@@ -1,5 +1,5 @@
 diff --git a/xla/pjrt/pjrt_c_api_client.cc b/xla/pjrt/pjrt_c_api_client.cc
-index cf9e35a..af8afcc 100644
+index 97dfb82a..d02283bd 100644
 --- a/xla/pjrt/pjrt_c_api_client.cc
 +++ b/xla/pjrt/pjrt_c_api_client.cc
 @@ -350,6 +350,38 @@ absl::Span<PjRtMemorySpace* const> PjRtCApiClient::memory_spaces() const {
@@ -49,9 +49,9 @@ index cf9e35a..af8afcc 100644
    args.compile_options = options_str.c_str();
    args.compile_options_size = options_str.size();
  
-@@ -410,6 +443,7 @@ PjRtCApiClient::CompileAndLoad(mlir::ModuleOp module, CompileOptions options) {
-   TF_ASSIGN_OR_RETURN(std::string serialized,
-                       xla::Serialize(module, version_string));
+@@ -414,6 +447,7 @@ PjRtCApiClient::CompileAndLoad(mlir::ModuleOp module, CompileOptions options) {
+                                plugin_attributes()->pjrt_c_api_minor_version)
+                          : std::nullopt));
    std::string format(pjrt::kMlirFormat);
 +  write_hlo(serialized, "madx4");
    return InitializeArgsAndCompile(this, c_api_, c_client_.get(), options,
