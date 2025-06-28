@@ -6,10 +6,14 @@ xla/configure:
 xla.configure: xla/configure
 	set -eux;cd xla;./configure.py --backend CPU $(if ${WITH_CLANG},--host_compiler CLANG --gcc_path /usr/bin/clang,--host_compiler GCC --gcc_path /usr/bin/gcc)
 
-configure: xla.configure
-	git -C xla checkout .
-	git -C xla apply <cpu_client_test.patch
-	git -C xla apply <pjrt_c_api_client.patch
+xla.checkout:
+	git -C xla checkout HEAD .
+
+xla.patch:
+	git -C xla apply ${GIT_OPT} <cpu_client_test.patch
+	git -C xla apply ${GIT_OPT} <pjrt_c_api_client.patch
+
+configure: xla.configure xla.checkout xla.patch
 
 BAZEL_CACHE_PERSISTENT=${CURDIR}/.cache/bazel
 BAZEL_CACHE=${CURDIR}/.cache/bazel
@@ -89,8 +93,8 @@ run.exec:
 	cp -pv xla/bazel-bin/xla/pjrt/cpu/cpu_client_test.runfiles/xla/*.pb hlo/
 
 patches:
-	git -C xla diff xla/pjrt/cpu > cpu_client_test.patch
-	git -C xla diff xla/pjrt/pjrt_c_api_client.cc > pjrt_c_api_client.patch
+	git -C xla diff HEAD xla/pjrt/cpu > cpu_client_test.patch
+	git -C xla diff HEAD xla/pjrt/pjrt_c_api_client.cc > pjrt_c_api_client.patch
 
 hlo:
 	${MAKE} -C hlo run clean
